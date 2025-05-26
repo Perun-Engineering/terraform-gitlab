@@ -1101,6 +1101,7 @@ resource "gitlab_project_variable" "this_sensitive" {
   value             = sensitive(each.value.variable.value)
   protected         = lookup(each.value.variable, "protected", false)
   masked            = lookup(each.value.variable, "masked", false)
+  hidden            = lookup(each.value.variable, "hidden", false)
   environment_scope = lookup(each.value.variable, "environment_scope", "*")
   description       = lookup(each.value.variable, "description", null)
   raw               = lookup(each.value.variable, "raw", false)
@@ -1437,7 +1438,6 @@ resource "gitlab_integration_jira" "this" {
   jira_issue_transition_automatic = each.value.integration.jira_issue_transition_automatic
   jira_issue_transition_id        = each.value.integration.jira_issue_transition_id
   merge_requests_events           = each.value.integration.merge_requests_events
-  project_key                     = each.value.integration.project_key
   project_keys                    = each.value.integration.project_keys
   use_inherited_settings          = each.value.integration.use_inherited_settings
 }
