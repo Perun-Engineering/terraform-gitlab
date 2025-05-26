@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.0 (2025-05-26)
+
+
+### Features
+
+* Add support for hidden variables ([3491d99](https://github.com/Perun-Engineering/terraform-gitlab/commit/3491d99f9eda691864317f0d3449c702a5cfb6ed))
+
 ## [1.6.0](https://github.com/opsworks-co/terraform-gitlab/compare/v1.5.0...v1.6.0) (2025-04-18)
 
 
