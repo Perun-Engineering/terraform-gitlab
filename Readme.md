@@ -16,7 +16,7 @@ This Terraform module provides resources to manage GitLab groups, projects, inte
 ## Requirements
 
 - Terraform 1.5.7 or higher.
-- GitLab Provider for Terraform 17.3.0 or higher.
+- GitLab Provider for Terraform 18.0.0 or higher.
 
 ## Usage
 
@@ -41,20 +41,20 @@ This Terraform module provides resources to manage GitLab groups, projects, inte
        settings:
          visibility: private
          description: "Parent group for user roles subgroups"
-    ```
+   ```
 
 2. **Projects Configuration**
 
-    Define your GitLab projects in YAML files located in the projects directory. Example projects/projects.yaml:
+   Define your GitLab projects in YAML files located in the projects directory. Example projects/projects.yaml:
 
-    ```yaml
-    projects:
-    - name: project-alpha
-        create: true
-        visibility: private
-        description: "Alpha project description"
-        settings: {}
-    ```
+   ```yaml
+   projects:
+   - name: project-alpha
+       create: true
+       visibility: private
+       description: "Alpha project description"
+       settings: {}
+   ```
 
 ### Step 2: Use the Module
 
@@ -71,17 +71,17 @@ Create a main.tf file and use the module to manage your GitLab resources:
 
 ### Step 3: Initialize and Apply
 
-1.	**Initialize Terraform:**
+1. **Initialize Terraform:**
 
-    ```sh
-    terraform init
-    ```
+   ```sh
+   terraform init
+   ```
 
-2.	**Apply the Terraform configuration:**
+2. **Apply the Terraform configuration:**
 
-    ```sh
-    terraform apply
-    ```
+   ```sh
+   terraform apply
+   ```
 
 ### Step 4: Verify Outputs
 
@@ -113,7 +113,6 @@ You can find examples in the examples/ directory for different use cases, such a
 
 - [terraform](https://github.com/opsworks-co/terraform-gitlab/tree/main/examples/terraform) - How to use module with terraform
 - [terragrunt](https://github.com/opsworks-co/terraform-gitlab/tree/main/examples/terragrunt) - How to use module with terragrunt
-
 
 ## Authors
 
