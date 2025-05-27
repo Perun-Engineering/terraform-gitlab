@@ -1265,6 +1265,7 @@ resource "gitlab_branch" "this" {
         project_namespace = project.namespace
         branch            = branch
       }
+      if branch.name != lookup(project, "default_branch", "")
     }
   ]...)
 
