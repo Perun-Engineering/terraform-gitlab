@@ -40,7 +40,10 @@ projects:
           allow_force_push: true
           code_owner_approval_required: true
           allowed_to_push:
-            - user_email: "user@domain.com"
+            - user_emails:
+              - "user1@domain.com"
+              - "user2@domain.com"
+              - "user3@domain.com"
             - group: "roles/project-sre-dev"
           allowed_to_merge:
             - user_email: "user@domain.com"
