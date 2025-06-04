@@ -1297,7 +1297,22 @@ resource "gitlab_branch_protection" "this" {
 
   # Dynamic blocks for allowed_to_push
   dynamic "allowed_to_push" {
-    for_each = lookup(each.value.branch, "allowed_to_push", [])
+    for_each = flatten([
+      for entry in lookup(each.value.branch, "allowed_to_push", []) : (
+        contains(keys(entry), "user_emails") ? [
+          for email in entry.user_emails : {
+            user_email = email
+          }
+        ] :
+        contains(keys(entry), "user_email") ? [{
+          user_email = entry.user_email
+        }] :
+        contains(keys(entry), "group") ? [{
+          group = entry.group
+        }] : []
+      )
+    ])
+
     content {
       user_id  = contains(keys(local.exists_users), lookup(allowed_to_push.value, "user_email", "")) ? local.exists_users[allowed_to_push.value.user_email].id : null
       group_id = contains(keys(local.exists_groups), lookup(allowed_to_push.value, "group", "")) ? local.exists_groups[allowed_to_push.value.group][0].group_id : null
@@ -1306,7 +1321,22 @@ resource "gitlab_branch_protection" "this" {
 
   # Dynamic blocks for allowed_to_merge
   dynamic "allowed_to_merge" {
-    for_each = lookup(each.value.branch, "allowed_to_merge", [])
+    for_each = flatten([
+      for entry in lookup(each.value.branch, "allowed_to_merge", []) : (
+        contains(keys(entry), "user_emails") ? [
+          for email in entry.user_emails : {
+            user_email = email
+          }
+        ] :
+        contains(keys(entry), "user_email") ? [{
+          user_email = entry.user_email
+        }] :
+        contains(keys(entry), "group") ? [{
+          group = entry.group
+        }] : []
+      )
+    ])
+
     content {
       user_id  = contains(keys(local.exists_users), lookup(allowed_to_merge.value, "user_email", "")) ? local.exists_users[allowed_to_merge.value.user_email].id : null
       group_id = contains(keys(local.exists_groups), lookup(allowed_to_merge.value, "group", "")) ? local.exists_groups[allowed_to_merge.value.group][0].group_id : null
@@ -1315,7 +1345,22 @@ resource "gitlab_branch_protection" "this" {
 
   # Dynamic blocks for allowed_to_unprotect
   dynamic "allowed_to_unprotect" {
-    for_each = lookup(each.value.branch, "allowed_to_unprotect", [])
+    for_each = flatten([
+      for entry in lookup(each.value.branch, "allowed_to_unprotect", []) : (
+        contains(keys(entry), "user_emails") ? [
+          for email in entry.user_emails : {
+            user_email = email
+          }
+        ] :
+        contains(keys(entry), "user_email") ? [{
+          user_email = entry.user_email
+        }] :
+        contains(keys(entry), "group") ? [{
+          group = entry.group
+        }] : []
+      )
+    ])
+
     content {
       user_id  = contains(keys(local.exists_users), lookup(allowed_to_unprotect.value, "user_email", "")) ? local.exists_users[allowed_to_unprotect.value.user_email].id : null
       group_id = contains(keys(local.exists_groups), lookup(allowed_to_unprotect.value, "group", "")) ? local.exists_groups[allowed_to_unprotect.value.group][0].group_id : null
