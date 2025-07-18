@@ -870,6 +870,21 @@ resource "gitlab_project_issue" "this" {
   weight                                  = lookup(each.value.issue, "weight", null)
 }
 
+locals {
+  # Extract projects for job_token_scopes
+  all_gitlab_projects = flatten([
+    for project in var.gitlab_projects : [
+      for scope in lookup(project.settings, "job_token_scopes", []) : scope.target_project_id
+    ] if lookup(project.settings, "job_token_scopes", []) != []
+  ])
+}
+
+# Some projects are managed outside of this module, collect them here
+data "gitlab_project" "external_managed" {
+  for_each = toset(local.all_gitlab_projects)
+  path_with_namespace = each.value
+}
+
 resource "gitlab_project_job_token_scope" "this" {
   for_each = merge([
     for project in var.gitlab_projects : {
@@ -884,7 +899,11 @@ resource "gitlab_project_job_token_scope" "this" {
 
   # Use the correct project ID
   project           = gitlab_project.this["${each.value.project_namespace}/${each.value.project_name}"].id
-  target_project_id = gitlab_project.this[each.value.job_token_scope.target_project_id].id
+  target_project_id = (
+    contains(keys(gitlab_project.this), each.value.job_token_scope.target_project_id) ?
+    gitlab_project.this[each.value.job_token_scope.target_project_id].id :
+    data.gitlab_project.external_managed[each.value.job_token_scope.target_project_id].id
+  )
 }
 
 resource "gitlab_project_label" "this" {
