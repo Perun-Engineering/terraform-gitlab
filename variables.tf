@@ -11,6 +11,11 @@ variable "gitlab_projects" {
   type        = any
 }
 
+variable "gitlab_projects_external" {
+  description = "List of GitLab projects managed outside of this module."
+  type        = any
+}
+
 variable "tier" {
   type        = string
   description = "Gitlab tier"
