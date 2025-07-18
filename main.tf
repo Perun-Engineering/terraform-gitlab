@@ -870,6 +870,12 @@ resource "gitlab_project_issue" "this" {
   weight                                  = lookup(each.value.issue, "weight", null)
 }
 
+# Some projects are managed outside of this module, collect them here
+data "gitlab_project" "external" {
+  for_each            = { for p in var.gitlab_projects_external : p => p }
+  path_with_namespace = each.key
+}
+
 resource "gitlab_project_job_token_scope" "this" {
   for_each = merge([
     for project in var.gitlab_projects : {
@@ -884,7 +890,11 @@ resource "gitlab_project_job_token_scope" "this" {
 
   # Use the correct project ID
   project           = gitlab_project.this["${each.value.project_namespace}/${each.value.project_name}"].id
-  target_project_id = gitlab_project.this[each.value.job_token_scope.target_project_id].id
+  target_project_id = (
+    contains(keys(gitlab_project.this), each.value.job_token_scope.target_project_id) ?
+    gitlab_project.this[each.value.job_token_scope.target_project_id].id :
+    data.gitlab_project.external[each.value.job_token_scope.target_project_id].id
+  )
 }
 
 resource "gitlab_project_label" "this" {
