@@ -37,3 +37,5 @@ terraform.rc
 
 # Terragrunt
 .terragrunt-cache
+.terraform-version
+.terragrunt-version
