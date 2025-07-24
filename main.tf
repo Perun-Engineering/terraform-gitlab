@@ -444,7 +444,7 @@ resource "gitlab_group_variable" "this_sensitive" {
 
   group             = each.value.parent == null ? gitlab_group.parent_groups[each.value.group_name].id : gitlab_group.subgroups[each.value.group_name].id
   key               = each.value.variable.key
-  value             = each.value.variable.value
+  value             = sensitive(each.value.variable.value)
   protected         = lookup(each.value.variable, "protected", false)
   masked            = lookup(each.value.variable, "masked", false)
   hidden            = lookup(each.value.variable, "hidden", false)
@@ -881,7 +881,7 @@ locals {
 
 # Some projects are managed outside of this module, collect them here
 data "gitlab_project" "external_managed" {
-  for_each = toset(local.all_gitlab_projects)
+  for_each            = toset(local.all_gitlab_projects)
   path_with_namespace = each.value
 }
 
@@ -898,7 +898,7 @@ resource "gitlab_project_job_token_scope" "this" {
   ]...)
 
   # Use the correct project ID
-  project           = gitlab_project.this["${each.value.project_namespace}/${each.value.project_name}"].id
+  project = gitlab_project.this["${each.value.project_namespace}/${each.value.project_name}"].id
   target_project_id = (
     contains(keys(gitlab_project.this), each.value.job_token_scope.target_project_id) ?
     gitlab_project.this[each.value.job_token_scope.target_project_id].id :
