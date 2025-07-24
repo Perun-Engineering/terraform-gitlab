@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v1.1.0...v1.2.0) (2025-07-24)
+
+
+### Features
+
+* Mark hidden variables sensitive ([#6](https://github.com/Perun-Engineering/terraform-gitlab/issues/6)) ([c928dbf](https://github.com/Perun-Engineering/terraform-gitlab/commit/c928dbf249fd19cecb1db443579e7ed062cd8f5f))
+
 ## [1.1.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v1.0.1...v1.1.0) (2025-07-18)
 
 
