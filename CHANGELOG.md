@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v1.2.0...v1.3.0) (2025-08-04)
+
+
+### Features
+
+* Allow to set gitlab_project_variable properties ([3e3466a](https://github.com/Perun-Engineering/terraform-gitlab/commit/3e3466acead8b23ad887a8f9c3e3ae4de031ae8f))
+
 ## [1.2.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v1.1.0...v1.2.0) (2025-07-24)
 
 
