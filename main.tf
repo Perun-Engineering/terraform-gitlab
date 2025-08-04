@@ -689,9 +689,9 @@ resource "gitlab_project_variable" "access_token_this" {
   project           = each.value.project_id
   key               = each.value.variable_name
   value             = sensitive(gitlab_project_access_token.this[each.key].token)
-  protected         = true
-  masked            = true
-  environment_scope = "*"
+  protected         = lookup(each.value, "protected", true)
+  masked            = lookup(each.value, "masked", true)
+  environment_scope = lookup(each.value, "environment_scope", "*")
   description       = "Generated access token for ${gitlab_project_access_token.this[each.key].name}"
 }
 
