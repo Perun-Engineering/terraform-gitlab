@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v1.3.0...v1.4.0) (2025-10-09)
+
+
+### Features
+
+* Add push support for deploy keys, bump version ([#8](https://github.com/Perun-Engineering/terraform-gitlab/issues/8)) ([119195d](https://github.com/Perun-Engineering/terraform-gitlab/commit/119195da4b27389c1eb633e493f7f0b48ed7f13e))
+
 ## [1.3.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v1.2.0...v1.3.0) (2025-08-04)
 
 
