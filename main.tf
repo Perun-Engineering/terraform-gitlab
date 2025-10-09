@@ -507,6 +507,9 @@ locals {
 
   # Group by name for groups, allowing for duplicates
   exists_groups = { for group in data.gitlab_groups.this.groups : group.full_path => group... }
+
+  # Map deploy keys by project namespace/name and key title for easy lookup
+  exists_deploy_keys = { for key_id, key in gitlab_deploy_key.this : key_id => key }
 }
 
 # Create GitLab projects dynamically
@@ -1318,8 +1321,9 @@ resource "gitlab_branch_protection" "this" {
   dynamic "allowed_to_push" {
     for_each = lookup(each.value.branch, "allowed_to_push", [])
     content {
-      user_id  = contains(keys(local.exists_users), lookup(allowed_to_push.value, "user_email", "")) ? local.exists_users[allowed_to_push.value.user_email].id : null
-      group_id = contains(keys(local.exists_groups), lookup(allowed_to_push.value, "group", "")) ? local.exists_groups[allowed_to_push.value.group][0].group_id : null
+      user_id       = contains(keys(local.exists_users), lookup(allowed_to_push.value, "user_email", "")) ? local.exists_users[allowed_to_push.value.user_email].id : null
+      group_id      = contains(keys(local.exists_groups), lookup(allowed_to_push.value, "group", "")) ? local.exists_groups[allowed_to_push.value.group][0].group_id : null
+      deploy_key_id = lookup(allowed_to_push.value, "deploy_key_title", null) != null && contains(keys(local.exists_deploy_keys), "${each.value.project_namespace}-${each.value.project_name}-${lookup(allowed_to_push.value, "deploy_key_title", "")}") ? local.exists_deploy_keys["${each.value.project_namespace}-${each.value.project_name}-${lookup(allowed_to_push.value, "deploy_key_title", "")}"].deploy_key_id : null
     }
   }
 
