@@ -4,7 +4,7 @@ resource "gitlab_group" "parent_groups" {
   for_each = {
     for group in var.gitlab_groups :
     group.name => group
-    if !contains(keys(group), "parent")
+    if !contains(keys(group), "parent") && !contains(keys(group), "parent_subgroup")
   }
 
   name             = each.value.name
@@ -68,7 +68,7 @@ resource "gitlab_group" "subgroups" {
   for_each = {
     for group in var.gitlab_groups :
     "${group.parent}/${group.name}" => group
-    if contains(keys(group), "parent")
+    if contains(keys(group), "parent") && !contains(keys(group), "parent_subgroup")
   }
 
   name             = each.value.name
@@ -78,6 +78,73 @@ resource "gitlab_group" "subgroups" {
 
   # Set parent_id from the existing parent group
   parent_id = gitlab_group.parent_groups[each.value.parent].id
+
+  # Group settings
+  auto_devops_enabled                = lookup(each.value.settings, "auto_devops_enabled", false)
+  lfs_enabled                        = lookup(each.value.settings, "lfs_enabled", true)
+  mentions_disabled                  = lookup(each.value.settings, "mentions_disabled", false)
+  project_creation_level             = lookup(each.value.settings, "project_creation_level", "maintainer")
+  request_access_enabled             = lookup(each.value.settings, "request_access_enabled", false)
+  require_two_factor_authentication  = lookup(each.value.settings, "require_two_factor_authentication", false)
+  share_with_group_lock              = lookup(each.value.settings, "share_with_group_lock", false)
+  subgroup_creation_level            = lookup(each.value.settings, "subgroup_creation_level", "owner")
+  two_factor_grace_period            = lookup(each.value.settings, "two_factor_grace_period", 48)
+  avatar                             = lookup(each.value.settings, "avatar", null)
+  avatar_hash                        = lookup(each.value.settings, "avatar_hash", null)
+  emails_enabled                     = lookup(each.value.settings, "emails_enabled", null)
+  extra_shared_runners_minutes_limit = lookup(each.value.settings, "extra_shared_runners_minutes_limit", null)
+  ip_restriction_ranges              = lookup(each.value.settings, "ip_restriction_ranges", null)
+  membership_lock                    = lookup(each.value.settings, "membership_lock", null)
+  prevent_forking_outside_group      = lookup(each.value.settings, "prevent_forking_outside_group", null)
+  shared_runners_minutes_limit       = lookup(each.value.settings, "shared_runners_minutes_limit", null)
+  shared_runners_setting             = lookup(each.value.settings, "shared_runners_setting", null)
+  wiki_access_level                  = lookup(each.value.settings, "wiki_access_level", null)
+
+  # Replace deprecated default_branch_protection with new block
+  default_branch_protection_defaults {
+    allow_force_push           = lookup(each.value.settings, "allow_force_push", false)
+    allowed_to_merge           = lookup(each.value.settings, "allowed_to_merge", ["maintainer"])
+    allowed_to_push            = lookup(each.value.settings, "allowed_to_push", ["maintainer"])
+    developer_can_initial_push = lookup(each.value.settings, "developer_can_initial_push", false)
+  }
+
+  dynamic "push_rules" {
+    for_each = try(each.value.settings.push_rules, [])
+    iterator = rule
+    content {
+      author_email_regex            = try(rule.value.author_email_regex, null)
+      branch_name_regex             = try(rule.value.branch_name_regex, null)
+      commit_committer_check        = try(rule.value.commit_committer_check, null)
+      commit_message_negative_regex = try(rule.value.commit_message_negative_regex, null)
+      commit_message_regex          = try(rule.value.commit_message_regex, null)
+      deny_delete_tag               = try(rule.value.deny_delete_tag, null)
+      file_name_regex               = try(rule.value.file_name_regex, null)
+      max_file_size                 = try(rule.value.max_file_size, null)
+      member_check                  = try(rule.value.member_check, null)
+      prevent_secrets               = try(rule.value.prevent_secrets, null)
+      reject_unsigned_commits       = try(rule.value.reject_unsigned_commits, null)
+    }
+  }
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# Create Nested Subgroups
+resource "gitlab_group" "nested_subgroups" {
+  for_each = {
+    for group in var.gitlab_groups :
+    "${group.parent_subgroup}/${group.name}" => group
+    if contains(keys(group), "parent") && contains(keys(group), "parent_subgroup")
+  }
+
+  name             = each.value.name
+  path             = lookup(each.value.settings, "path", each.value.name)
+  description      = lookup(each.value.settings, "description", null)
+  visibility_level = lookup(each.value.settings, "visibility", "private")
+
+  # Set parent_id from the existing parent subgroup
+  parent_id = gitlab_group.subgroups[each.value.parent_subgroup].id
 
   # Group settings
   auto_devops_enabled                = lookup(each.value.settings, "auto_devops_enabled", false)
@@ -495,8 +562,9 @@ locals {
       for share in lookup(group, "settings", {})["share_groups"] : merge(
         share,
         {
-          group_id = group.name,
-          parent   = lookup(group, "parent", null) # Ensure parent is included
+          group_id        = group.name,
+          parent          = lookup(group, "parent", null)          # Ensure parent is included
+          parent_subgroup = lookup(group, "parent_subgroup", null) # Ensure parent_subgroup is included
         }
       )
     ] if contains(keys(lookup(group, "settings", {})), "share_groups")
@@ -1592,14 +1660,20 @@ resource "gitlab_deploy_token" "this" {
 resource "gitlab_group_share_group" "this" {
   for_each = {
     for group in local.share_groups :
-    group.parent != null ? "${group.parent}/${group.group_id}-${group.share_group_id}" : "${group.group_id}-${group.share_group_id}" => group
+    group.parent == null ? "${group.group_id}-${group.share_group_id}" : (
+      group.parent != null && group.parent_subgroup != null
+      ? "${group.parent_subgroup}/${group.group_id}-${group.share_group_id}"
+    : "${group.parent}/${group.group_id}-${group.share_group_id}") => group
   }
 
-  group_id = contains(keys(gitlab_group.parent_groups), each.value.group_id) ? gitlab_group.parent_groups[each.value.group_id].id : (
-    contains(keys(gitlab_group.subgroups), each.value.group_id)
-    ? gitlab_group.subgroups[each.value.group_id].id
-    : gitlab_group.subgroups["${each.value.parent}/${each.value.group_id}"].id
+  group_id = (
+    contains(keys(gitlab_group.parent_groups), each.value.group_id)
+    ? gitlab_group.parent_groups[each.value.group_id].id
+    : contains(keys(gitlab_group.subgroups), "${each.value.parent}/${each.value.group_id}")
+    ? gitlab_group.subgroups["${each.value.parent}/${each.value.group_id}"].id
+    : gitlab_group.nested_subgroups["${each.value.parent_subgroup}/${each.value.group_id}"].id
   )
+
   share_group_id = contains(keys(gitlab_group.parent_groups), each.value.share_group_id) ? gitlab_group.parent_groups[each.value.share_group_id].id : (
     contains(keys(gitlab_group.subgroups), each.value.share_group_id)
     ? gitlab_group.subgroups[each.value.share_group_id].id
