@@ -62,6 +62,7 @@ removed the underlying attributes. Use the replacement listed instead:
 | `restrict_user_defined_variables` | `ci_pipeline_variables_minimum_override_role` (`false` -> `"developer"`, `true` -> `"maintainer"`) |
 | `tags` | `topics` |
 | `import_url`, `import_url_username`, `import_url_password`, `mirror_trigger_builds`, `only_mirror_protected_branches`, `mirror_overwrites_diverged_branches` | still supported, but now provisioned via a new `gitlab_project_pull_mirror` resource instead of `gitlab_project` attributes. Set `mirror: true` and `import_url` on the project as before. |
+| `settings.level_mr_approvals[].require_password_to_approve` | `require_reauthentication_to_approve` (same meaning, provider-deprecated key removed in GitLab 20.0) |
 
 ## `gitlab_branch_protection` (CE vs EE)
 

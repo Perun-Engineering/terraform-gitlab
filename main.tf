@@ -934,7 +934,7 @@ resource "gitlab_project_level_mr_approvals" "this" {
   disable_overriding_approvers_per_merge_request = lookup(each.value.level_mr_approvals, "disable_overriding_approvers_per_merge_request", false)
   merge_requests_author_approval                 = lookup(each.value.level_mr_approvals, "merge_requests_author_approval", false)
   merge_requests_disable_committers_approval     = lookup(each.value.level_mr_approvals, "merge_requests_disable_committers_approval", false)
-  require_password_to_approve                    = lookup(each.value.level_mr_approvals, "require_password_to_approve", false)
+  require_reauthentication_to_approve            = lookup(each.value.level_mr_approvals, "require_reauthentication_to_approve", false)
   reset_approvals_on_push                        = lookup(each.value.level_mr_approvals, "reset_approvals_on_push", false)
   selective_code_owner_removals                  = lookup(each.value.level_mr_approvals, "selective_code_owner_removals", false)
 }
