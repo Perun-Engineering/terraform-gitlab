@@ -2,6 +2,60 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v1.4.0...v2.0.0) (2026-07-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* renames gitlab_project_mirror, gitlab_integration_* resources,
+splits gitlab_deploy_token into project/group and gitlab_branch_protection into
+CE/EE variants, and removes deprecated gitlab_project boolean/mirror attributes
+per the provider's 19.0 upgrade guide. See docs/UPGRADE-2.0.md.
+
+* fix: Bump terragrunt_version_constraint to 0.99.5 in terragrunt example
+
+* fix: Drop ambiguous moved blocks for split resources
+
+Terraform rejects two moved blocks sharing the same 'from' address with
+'Ambiguous move statements', so the gitlab_deploy_token and
+gitlab_branch_protection splits can't be automated via moved.tf. Keep the
+7 safe 1:1 resource renames there, and document the required manual
+terraform state mv commands for the two splits in docs/UPGRADE-2.0.md.
+
+* fix: Forward access_level in gitlab_branch_protection ee allowed_to_* lists
+
+allowed_to_push/allowed_to_merge/allowed_to_unprotect entries only computed
+user_id/group_id/deploy_key_id, silently dropping access_level. Since EE no
+longer honors push_access_level/merge_access_level at all, callers now rely
+on an access_level entry inside allowed_to_push/allowed_to_merge, which the
+module previously discarded, producing all-null entries and provider errors.
+
+* fix: Replace deprecated require_password_to_approve attribute
+
+require_password_to_approve on gitlab_project_level_mr_approvals is
+deprecated in provider 19.x and removed in 20.0; use
+require_reauthentication_to_approve instead.
+
+* fix: Replace bulk gitlab_users/gitlab_groups lookups with scoped fetches
+
+data "gitlab_users" "this" {} and data "gitlab_groups" "this" {} paged the
+whole instance (720+ users here) and were non-deterministic between two reads
+a minute apart, flipping which user/group resolved for allowed_to_push,
+allowed_to_merge, membership, approval_rule, and protected_environment
+entries and tripping the provider's ExactlyOneOf validator.
+
+Replace both with data.gitlab_user/data.gitlab_group for_each, scoped to only
+the emails and group full_paths actually referenced across
+var.gitlab_projects. Groups already managed by this module invocation are
+merged in directly from gitlab_group.parent_groups/subgroups rather than
+looked up externally, since a brand-new group doesn't exist yet at plan time
+and would otherwise 404 the data source read. exists_users/exists_groups
+keep their existing shape so no other call site changes.
+
+### Features
+
+* Upgrade gitlab provider to 19.x ([#10](https://github.com/Perun-Engineering/terraform-gitlab/issues/10)) ([38b5a40](https://github.com/Perun-Engineering/terraform-gitlab/commit/38b5a40d1eaa7a9eeec97aea15787b28a7d7e60c))
+
 ## [1.4.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v1.3.0...v1.4.0) (2025-10-09)
 
 
