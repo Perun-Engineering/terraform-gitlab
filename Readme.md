@@ -15,8 +15,8 @@ This Terraform module provides resources to manage GitLab groups, projects, inte
 
 ## Requirements
 
-- Terraform 1.5.7 or higher.
-- GitLab Provider for Terraform 18.0.0 or higher.
+- Terraform 1.8.0 or higher.
+- GitLab Provider for Terraform 19.0.0 or higher. See [docs/UPGRADE-2.0.md](docs/UPGRADE-2.0.md) if upgrading from a 18.x-based release of this module.
 
 ## Usage
 
@@ -111,8 +111,8 @@ The module provides the following outputs:
 
 You can find examples in the examples/ directory for different use cases, such as managing multiple groups, configuring integrations, and using different YAML configurations.
 
-- [terraform](https://github.com/opsworks-co/terraform-gitlab/tree/main/examples/terraform) - How to use module with terraform
-- [terragrunt](https://github.com/opsworks-co/terraform-gitlab/tree/main/examples/terragrunt) - How to use module with terragrunt
+- [terraform](https://github.com/Perun-Engineering/terraform-gitlab/tree/main/examples/terraform) - How to use module with terraform
+- [terragrunt](https://github.com/Perun-Engineering/terraform-gitlab/tree/main/examples/terragrunt) - How to use module with terragrunt
 
 ## Authors
 
@@ -120,4 +120,4 @@ Module is maintained by [Serhii Kaidalov](https://github.com/wiseelf).
 
 ## License
 
-Apache 2 Licensed. See [LICENSE](https://github.com/opsworks-co/terraform-gitlab/tree/main/LICENSE) for full details.
+Apache 2 Licensed. See [LICENSE](https://github.com/Perun-Engineering/terraform-gitlab/tree/main/LICENSE) for full details.

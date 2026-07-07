@@ -18,7 +18,10 @@ output "project_ids" {
 
 output "deploy_token_ids" {
   description = "IDs of created deploy tokens."
-  value       = [for token in gitlab_deploy_token.this : token.id]
+  value = concat(
+    [for token in gitlab_project_deploy_token.this : token.id],
+    [for token in gitlab_group_deploy_token.this : token.id],
+  )
 }
 
 output "pipeline_schedule_ids" {

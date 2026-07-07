@@ -1,5 +1,5 @@
 terraform {
-  #source = "git@github.com:opsworks-co/terraform-gitlab.git//.?ref=${include.root.locals.terraform-gitlab}"
+  #source = "git@github.com:Perun-Engineering/terraform-gitlab.git//.?ref=${include.root.locals.terraform-gitlab}"
   source = get_repo_root()
 }
 
