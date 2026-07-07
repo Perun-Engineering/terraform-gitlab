@@ -2,13 +2,12 @@
 
 This update bumps the GitLab provider requirement from `18.4.1` to `19.1.0` to pick up
 GitLab 19.0 support. The provider's own [19.0 upgrade guide](https://registry.terraform.io/providers/gitlabhq/gitlab/latest/docs/guides/version-19.0-upgrade)
-required matching changes in this module. `moved.tf` handles the resource-type renames
-automatically; no manual `terraform state mv` is required, but a plan should be reviewed
-before applying since several resources are recreated under new addresses.
+required matching changes in this module.
 
-Requires Terraform `>= 1.8` (needed for `moved` blocks across different resource types).
+Requires Terraform `>= 1.8` (needed for the `moved` blocks in `moved.tf`, which move
+resources across different resource types).
 
-## Resource renames (handled by `moved.tf`)
+## Resource renames (handled automatically by `moved.tf`)
 
 - `gitlab_project_mirror` -> `gitlab_project_push_mirror`
 - `gitlab_integration_emails_on_push` -> `gitlab_project_integration_emails_on_push`
@@ -17,9 +16,37 @@ Requires Terraform `>= 1.8` (needed for `moved` blocks across different resource
 - `gitlab_integration_jira` -> `gitlab_project_integration_jira`
 - `gitlab_integration_microsoft_teams` -> `gitlab_project_integration_microsoft_teams`
 - `gitlab_integration_pipelines_email` -> `gitlab_project_integration_pipelines_email`
-- `gitlab_deploy_token` split into `gitlab_project_deploy_token` and `gitlab_group_deploy_token`
-- `gitlab_branch_protection` split into `gitlab_branch_protection.ce` and `gitlab_branch_protection.ee`,
-  selected automatically by `var.tier`
+
+No action needed for these; `terraform plan` will show them moved in place.
+
+## Resource splits (require a manual `terraform state mv`)
+
+Terraform rejects two `moved` blocks that share the same `from` address with
+`Error: Ambiguous move statements`, even when the destination `for_each` sets are
+disjoint — so these two splits can't be automated in `moved.tf`. Without a manual
+move, `terraform plan` will destroy the old resource and create the new one.
+
+### `gitlab_deploy_token` -> `gitlab_project_deploy_token` / `gitlab_group_deploy_token`
+
+Move each instance to the resource matching its scope (`project` vs `group` in your
+`gitlab_deploy_token.this` addresses):
+
+```bash
+terraform state mv 'module.gitlab.gitlab_deploy_token.this["project-ns-proj-mytoken"]' 'module.gitlab.gitlab_project_deploy_token.this["project-ns-proj-mytoken"]'
+terraform state mv 'module.gitlab.gitlab_deploy_token.this["group-mygroup-mytoken"]'   'module.gitlab.gitlab_group_deploy_token.this["group-mygroup-mytoken"]'
+```
+
+### `gitlab_branch_protection` -> `.ce` / `.ee`
+
+Move each instance to `.ce` if your `var.tier` is `free`, or `.ee` if `premium`/`ultimate`:
+
+```bash
+# tier = "free"
+terraform state mv 'module.gitlab.gitlab_branch_protection.this["ns-proj-main"]' 'module.gitlab.gitlab_branch_protection.ce["ns-proj-main"]'
+
+# tier = "premium" / "ultimate"
+terraform state mv 'module.gitlab.gitlab_branch_protection.this["ns-proj-main"]' 'module.gitlab.gitlab_branch_protection.ee["ns-proj-main"]'
+```
 
 ## ⚠️ Breaking changes to `gitlab_projects` input
 

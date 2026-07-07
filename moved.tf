@@ -39,27 +39,8 @@ moved {
   to   = gitlab_project_integration_pipelines_email.this
 }
 
-# gitlab_deploy_token split into project- and group-scoped resources.
-# Instance keys are prefixed "project-"/"group-" and disjoint between the two,
-# so each old instance matches exactly one of the two destinations.
-moved {
-  from = gitlab_deploy_token.this
-  to   = gitlab_project_deploy_token.this
-}
-
-moved {
-  from = gitlab_deploy_token.this
-  to   = gitlab_group_deploy_token.this
-}
-
-# gitlab_branch_protection split into CE/EE resources gated by var.tier.
-# Only one of the two ever has matching instances for a given module invocation.
-moved {
-  from = gitlab_branch_protection.this
-  to   = gitlab_branch_protection.ce
-}
-
-moved {
-  from = gitlab_branch_protection.this
-  to   = gitlab_branch_protection.ee
-}
+# gitlab_deploy_token (split into project/group) and gitlab_branch_protection
+# (split into ce/ee) are NOT covered here: Terraform rejects two moved blocks
+# sharing the same "from" with "Error: Ambiguous move statements", even when
+# the destination for_each sets are disjoint. See docs/UPGRADE-2.0.md for the
+# manual `terraform state mv` commands required for those two resources.
