@@ -480,11 +480,6 @@ resource "gitlab_group_variable" "this" {
   variable_type     = lookup(each.value.variable, "variable_type", "env_var")
 }
 
-# Data sources to retrieve users and groups from GitLab
-data "gitlab_users" "this" {}
-
-data "gitlab_groups" "this" {}
-
 # Locals to map users and groups for dynamic references
 locals {
   label_map = { for group_name, label in gitlab_group_label.this : label.name => label.label_id }
@@ -502,14 +497,94 @@ locals {
     ] if contains(keys(lookup(group, "settings", {})), "share_groups")
   ]))
 
-  # Group by username for users; this should not have duplicates
-  exists_users = { for user in data.gitlab_users.this.users : user.email => user }
+  # Every email referenced by *_email keys across projects, so we look up exactly
+  # those users instead of paging through the whole instance (data.gitlab_users
+  # is non-deterministic on large instances: the user list can differ between two
+  # reads a minute apart, which flips which allowed_to_* entries resolve).
+  referenced_user_emails = toset(compact(flatten([
+    for project in var.gitlab_projects : concat(
+      flatten([for rule in lookup(project.settings, "approval_rules", []) : lookup(rule, "user_emails", [])]),
+      [for member in lookup(project.settings, "memberships", []) : lookup(member, "user_email", null)],
+      flatten([
+        for env in lookup(project.settings, "protected_environments", []) : concat(
+          [for lvl in lookup(env, "deploy_access_levels", []) : lookup(lvl, "user_email", null)],
+          [for rule in lookup(env, "approval_rules", []) : lookup(rule, "user_email", null)],
+        )
+      ]),
+      flatten([
+        for branch in lookup(project.settings, "branches", []) : concat(
+          [for entry in lookup(branch, "allowed_to_push", []) : lookup(entry, "user_email", null)],
+          [for entry in lookup(branch, "allowed_to_merge", []) : lookup(entry, "user_email", null)],
+          [for entry in lookup(branch, "allowed_to_unprotect", []) : lookup(entry, "user_email", null)],
+        )
+      ]),
+    )
+  ])))
 
-  # Group by name for groups, allowing for duplicates
-  exists_groups = { for group in data.gitlab_groups.this.groups : group.full_path => group... }
+  # Group full_paths managed by this module invocation, excluded from the external
+  # group lookup below since they don't exist yet at plan time for a brand-new group.
+  managed_group_paths = toset(concat(keys(gitlab_group.parent_groups), keys(gitlab_group.subgroups)))
+
+  # Same rationale as referenced_user_emails: look up exactly the group full_paths
+  # this config references, instead of paging through every group on the instance.
+  referenced_group_paths = toset([
+    for path in compact(flatten([
+      [for project in var.gitlab_projects : project.namespace],
+      flatten([for project in var.gitlab_projects : [for rule in lookup(project.settings, "approval_rules", []) : lookup(rule, "group_names", [])]]),
+      flatten([
+        for project in var.gitlab_projects : [
+          for env in lookup(project.settings, "protected_environments", []) : concat(
+            [for lvl in lookup(env, "deploy_access_levels", []) : lookup(lvl, "group", null)],
+            [for rule in lookup(env, "approval_rules", []) : lookup(rule, "group", null)],
+          )
+        ]
+      ]),
+      [for project in var.gitlab_projects : [for sg in lookup(project.settings, "share_groups", []) : sg.group]],
+      flatten([
+        for project in var.gitlab_projects : [
+          for branch in lookup(project.settings, "branches", []) : concat(
+            [for entry in lookup(branch, "allowed_to_push", []) : lookup(entry, "group", null)],
+            [for entry in lookup(branch, "allowed_to_merge", []) : lookup(entry, "group", null)],
+            [for entry in lookup(branch, "allowed_to_unprotect", []) : lookup(entry, "group", null)],
+          )
+        ]
+      ]),
+    ])) : path if !contains(local.managed_group_paths, path)
+  ])
+
+  # Groups managed by this module invocation, in the same [{ group_id = ... }] shape
+  # as the external lookup below, so every exists_groups[path][0].group_id call site
+  # resolves internally-managed groups too (not just ones that already existed).
+  managed_groups_by_path = merge(
+    { for name, group in gitlab_group.parent_groups : name => [{ group_id = group.id }] },
+    { for path, group in gitlab_group.subgroups : path => [{ group_id = group.id }] },
+  )
+
+  # Group by name for groups, allowing for duplicates (keeps the [0] indexing used
+  # at every exists_groups[...] call site unchanged)
+  exists_groups = merge(
+    local.managed_groups_by_path,
+    { for path, group in data.gitlab_group.referenced : path => [group] },
+  )
+
+  # Group by email for users; this should not have duplicates
+  exists_users = { for email, user in data.gitlab_user.referenced : email => user }
 
   # Map deploy keys by project namespace/name and key title for easy lookup
   exists_deploy_keys = { for key_id, key in gitlab_deploy_key.this : key_id => key }
+}
+
+# Resolve only the users actually referenced by email across all project settings
+data "gitlab_user" "referenced" {
+  for_each          = local.referenced_user_emails
+  email             = each.value
+  email_exact_match = true
+}
+
+# Resolve only the groups actually referenced that aren't already managed by this module
+data "gitlab_group" "referenced" {
+  for_each  = local.referenced_group_paths
+  full_path = each.value
 }
 
 # Create GitLab projects dynamically
@@ -558,13 +633,9 @@ resource "gitlab_project" "this" {
   forking_access_level                             = lookup(each.value, "forking_access_level", null)
   group_runners_enabled                            = lookup(each.value, "group_runners_enabled", null)
   group_with_project_templates_id                  = lookup(each.value, "group_with_project_templates_id", null)
-  import_url                                       = lookup(each.value, "import_url", null)
-  import_url_password                              = lookup(each.value, "import_url_password", null)
-  import_url_username                              = lookup(each.value, "import_url_username", null)
   infrastructure_access_level                      = lookup(each.value, "infrastructure_access_level", null)
   initialize_with_readme                           = lookup(each.value, "initialize_with_readme", null)
   issues_access_level                              = lookup(each.value, "issues_access_level", null)
-  issues_enabled                                   = lookup(each.value, "issues_enabled", true)
   issues_template                                  = lookup(each.value, "issues_template", null)
   keep_latest_artifact                             = lookup(each.value, "keep_latest_artifact", null)
   lfs_enabled                                      = lookup(each.value, "lfs_enabled", null)
@@ -572,17 +643,12 @@ resource "gitlab_project" "this" {
   merge_method                                     = lookup(each.value, "merge_method", null)
   merge_pipelines_enabled                          = lookup(each.value, "merge_pipelines_enabled", null)
   merge_requests_access_level                      = lookup(each.value, "merge_requests_access_level", null)
-  merge_requests_enabled                           = lookup(each.value, "merge_requests_enabled", true)
   merge_requests_template                          = lookup(each.value, "merge_requests_template", null)
   merge_trains_enabled                             = lookup(each.value, "merge_trains_enabled", null)
-  mirror                                           = lookup(each.value, "mirror", null)
-  mirror_overwrites_diverged_branches              = lookup(each.value, "mirror_overwrites_diverged_branches", null)
-  mirror_trigger_builds                            = lookup(each.value, "mirror_trigger_builds", null)
   monitor_access_level                             = lookup(each.value, "monitor_access_level", null)
   mr_default_target_self                           = lookup(each.value, "mr_default_target_self", null)
   only_allow_merge_if_all_discussions_are_resolved = lookup(each.value, "only_allow_merge_if_all_discussions_are_resolved", null)
   only_allow_merge_if_pipeline_succeeds            = lookup(each.value, "only_allow_merge_if_pipeline_succeeds", null)
-  only_mirror_protected_branches                   = lookup(each.value, "only_mirror_protected_branches", null)
   packages_enabled                                 = lookup(each.value, "packages_enabled", null)
   pages_access_level                               = lookup(each.value, "pages_access_level", null)
   path                                             = lookup(each.value, "path", null)
@@ -629,29 +695,26 @@ resource "gitlab_project" "this" {
     }
   }
 
-  releases_access_level                   = lookup(each.value, "releases_access_level", null)
-  remove_source_branch_after_merge        = lookup(each.value, "remove_source_branch_after_merge", null)
-  repository_access_level                 = lookup(each.value, "repository_access_level", null)
-  repository_storage                      = lookup(each.value, "repository_storage", null)
-  request_access_enabled                  = lookup(each.value, "request_access_enabled", null)
-  requirements_access_level               = lookup(each.value, "requirements_access_level", null)
-  resolve_outdated_diff_discussions       = lookup(each.value, "resolve_outdated_diff_discussions", null)
-  restrict_user_defined_variables         = lookup(each.value, "restrict_user_defined_variables", null)
-  security_and_compliance_access_level    = lookup(each.value, "security_and_compliance_access_level", null)
-  shared_runners_enabled                  = lookup(each.value, "shared_runners_enabled", null)
-  skip_wait_for_default_branch_protection = lookup(each.value, "skip_wait_for_default_branch_protection", null)
-  snippets_access_level                   = lookup(each.value, "snippets_access_level", null)
-  snippets_enabled                        = lookup(each.value, "snippets_enabled", null)
-  squash_commit_template                  = lookup(each.value, "squash_commit_template", null)
-  squash_option                           = lookup(each.value, "squash_option", null)
-  suggestion_commit_message               = lookup(each.value, "suggestion_commit_message", null)
-  tags                                    = lookup(each.value, "tags", null)
-  template_name                           = lookup(each.value, "template_name", null)
-  template_project_id                     = lookup(each.value, "template_project_id", null)
-  topics                                  = lookup(each.value, "topics", null)
-  use_custom_template                     = lookup(each.value, "use_custom_template", null)
-  wiki_access_level                       = lookup(each.value, "wiki_access_level", null)
-  wiki_enabled                            = lookup(each.value, "wiki_enabled", null)
+  ci_pipeline_variables_minimum_override_role = lookup(each.value, "ci_pipeline_variables_minimum_override_role", null)
+  releases_access_level                       = lookup(each.value, "releases_access_level", null)
+  remove_source_branch_after_merge            = lookup(each.value, "remove_source_branch_after_merge", null)
+  repository_access_level                     = lookup(each.value, "repository_access_level", null)
+  repository_storage                          = lookup(each.value, "repository_storage", null)
+  request_access_enabled                      = lookup(each.value, "request_access_enabled", null)
+  requirements_access_level                   = lookup(each.value, "requirements_access_level", null)
+  resolve_outdated_diff_discussions           = lookup(each.value, "resolve_outdated_diff_discussions", null)
+  security_and_compliance_access_level        = lookup(each.value, "security_and_compliance_access_level", null)
+  shared_runners_enabled                      = lookup(each.value, "shared_runners_enabled", null)
+  skip_wait_for_default_branch_protection     = lookup(each.value, "skip_wait_for_default_branch_protection", null)
+  snippets_access_level                       = lookup(each.value, "snippets_access_level", null)
+  squash_commit_template                      = lookup(each.value, "squash_commit_template", null)
+  squash_option                               = lookup(each.value, "squash_option", null)
+  suggestion_commit_message                   = lookup(each.value, "suggestion_commit_message", null)
+  template_name                               = lookup(each.value, "template_name", null)
+  template_project_id                         = lookup(each.value, "template_project_id", null)
+  topics                                      = lookup(each.value, "topics", null)
+  use_custom_template                         = lookup(each.value, "use_custom_template", null)
+  wiki_access_level                           = lookup(each.value, "wiki_access_level", null)
 }
 
 resource "gitlab_project_access_token" "this" {
@@ -946,7 +1009,7 @@ resource "gitlab_project_level_mr_approvals" "this" {
   disable_overriding_approvers_per_merge_request = lookup(each.value.level_mr_approvals, "disable_overriding_approvers_per_merge_request", false)
   merge_requests_author_approval                 = lookup(each.value.level_mr_approvals, "merge_requests_author_approval", false)
   merge_requests_disable_committers_approval     = lookup(each.value.level_mr_approvals, "merge_requests_disable_committers_approval", false)
-  require_password_to_approve                    = lookup(each.value.level_mr_approvals, "require_password_to_approve", false)
+  require_reauthentication_to_approve            = lookup(each.value.level_mr_approvals, "require_reauthentication_to_approve", false)
   reset_approvals_on_push                        = lookup(each.value.level_mr_approvals, "reset_approvals_on_push", false)
   selective_code_owner_removals                  = lookup(each.value.level_mr_approvals, "selective_code_owner_removals", false)
 }
@@ -991,7 +1054,7 @@ resource "gitlab_project_milestone" "this" {
   state       = lookup(each.value.milestone, "state", "active") # Default state if not specified
 }
 
-resource "gitlab_project_mirror" "this" {
+resource "gitlab_project_push_mirror" "this" {
   for_each = merge([
     for project in var.gitlab_projects : {
       for mirror in [lookup(project.settings, "mirror", null)] :
@@ -1014,6 +1077,23 @@ resource "gitlab_project_mirror" "this" {
   only_protected_branches = each.value.only_protected_branches
 }
 
+# Pull mirroring, replaces the removed gitlab_project import_url/mirror* attributes
+resource "gitlab_project_pull_mirror" "this" {
+  for_each = {
+    for project in var.gitlab_projects :
+    "${project.namespace}/${project.name}" => project
+    if lookup(project, "mirror", null) == true && lookup(project, "import_url", null) != null
+  }
+
+  project                             = gitlab_project.this[each.key].id
+  url                                 = each.value.import_url
+  auth_user                           = lookup(each.value, "import_url_username", null)
+  auth_password                       = lookup(each.value, "import_url_password", null)
+  mirror_trigger_builds               = lookup(each.value, "mirror_trigger_builds", null)
+  only_mirror_protected_branches      = lookup(each.value, "only_mirror_protected_branches", null)
+  mirror_overwrites_diverged_branches = lookup(each.value, "mirror_overwrites_diverged_branches", null)
+}
+
 resource "gitlab_project_protected_environment" "this" {
   for_each = merge([
     for project in var.gitlab_projects : {
@@ -1031,33 +1111,14 @@ resource "gitlab_project_protected_environment" "this" {
   environment = each.value.environment.environment
   project     = gitlab_project.this["${each.value.project_namespace}/${each.value.project_name}"].id
 
-
-  # Dynamic block for access level
-  dynamic "deploy_access_levels" {
-    for_each = [for lvl in try(each.value.environment.deploy_access_levels, []) : lvl if lookup(lvl, "access_level", null) != null]
-    iterator = lvl
-    content {
-      access_level = try(lvl.value.access_level, null)
+  # List of objects, replaces the removed deploy_access_levels nested blocks
+  deploy_access_levels_attribute = [
+    for lvl in try(each.value.environment.deploy_access_levels, []) : {
+      access_level = lookup(lvl, "access_level", null)
+      group_id     = lookup(lvl, "group", null) != null && contains(keys(local.exists_groups), lvl.group) ? local.exists_groups[lvl.group][0].group_id : null
+      user_id      = lookup(lvl, "user_email", null) != null && contains(keys(local.exists_users), lvl.user_email) ? local.exists_users[lvl.user_email].id : null
     }
-  }
-
-  # Dynamic block for group_id
-  dynamic "deploy_access_levels" {
-    for_each = [for lvl in try(each.value.environment.deploy_access_levels, []) : lvl if lookup(lvl, "group", null) != null]
-    iterator = lvl
-    content {
-      group_id = contains(keys(local.exists_groups), lvl.value.group) ? local.exists_groups[lvl.value.group][0].group_id : null
-    }
-  }
-
-  # Dynamic block for user_id
-  dynamic "deploy_access_levels" {
-    for_each = [for lvl in try(each.value.environment.deploy_access_levels, []) : lvl if lookup(lvl, "user_email", null) != null]
-    iterator = lvl
-    content {
-      user_id = contains(keys(local.exists_users), lvl.value.user_email) ? local.exists_users[lvl.value.user_email].id : null
-    }
-  }
+  ]
 
   # Set approval rules directly as a list of objects
   approval_rules = flatten([
@@ -1297,7 +1358,8 @@ resource "gitlab_branch" "this" {
 }
 
 # Create GitLab Branch Protection for Protected Branches
-resource "gitlab_branch_protection" "this" {
+# CE: push_access_level/merge_access_level are not available on GitLab Enterprise instances
+resource "gitlab_branch_protection" "ce" {
   for_each = merge([
     for project in var.gitlab_projects : {
       for branch in lookup(project.settings, "branches", []) :
@@ -1305,45 +1367,59 @@ resource "gitlab_branch_protection" "this" {
         project_name      = project.name
         project_namespace = project.namespace
         branch            = branch
-      } if lookup(branch, "protected", false) == true # Only create protection if `protected` is set to true
+      } if lookup(branch, "protected", false) == true && !contains(["premium", "ultimate"], lower(var.tier))
+    }
+  ]...)
+
+  project            = gitlab_project.this["${each.value.project_namespace}/${each.value.project_name}"].id
+  branch             = each.value.branch.name
+  push_access_level  = lookup(each.value.branch, "push_access_level", "maintainer")
+  merge_access_level = lookup(each.value.branch, "merge_access_level", "maintainer")
+  allow_force_push   = lookup(each.value.branch, "allow_force_push", false)
+}
+
+# EE: allowed_to_push/allowed_to_merge/allowed_to_unprotect/code_owner_approval_required require GitLab Enterprise
+resource "gitlab_branch_protection" "ee" {
+  for_each = merge([
+    for project in var.gitlab_projects : {
+      for branch in lookup(project.settings, "branches", []) :
+      "${project.namespace}-${project.name}-${branch.name}" => {
+        project_name      = project.name
+        project_namespace = project.namespace
+        branch            = branch
+      } if lookup(branch, "protected", false) == true && contains(["premium", "ultimate"], lower(var.tier))
     }
   ]...)
 
   project                      = gitlab_project.this["${each.value.project_namespace}/${each.value.project_name}"].id
   branch                       = each.value.branch.name
-  push_access_level            = lookup(each.value.branch, "push_access_level", "maintainer")
-  merge_access_level           = lookup(each.value.branch, "merge_access_level", "maintainer")
-  unprotect_access_level       = lookup(each.value.branch, "unprotect_access_level", "admin")
   allow_force_push             = lookup(each.value.branch, "allow_force_push", false)
   code_owner_approval_required = lookup(each.value.branch, "code_owner_approval_required", true)
 
-  # Dynamic blocks for allowed_to_push
-  dynamic "allowed_to_push" {
-    for_each = lookup(each.value.branch, "allowed_to_push", [])
-    content {
-      user_id       = contains(keys(local.exists_users), lookup(allowed_to_push.value, "user_email", "")) ? local.exists_users[allowed_to_push.value.user_email].id : null
-      group_id      = contains(keys(local.exists_groups), lookup(allowed_to_push.value, "group", "")) ? local.exists_groups[allowed_to_push.value.group][0].group_id : null
-      deploy_key_id = lookup(allowed_to_push.value, "deploy_key_title", null) != null && contains(keys(local.exists_deploy_keys), "${each.value.project_namespace}-${each.value.project_name}-${lookup(allowed_to_push.value, "deploy_key_title", "")}") ? local.exists_deploy_keys["${each.value.project_namespace}-${each.value.project_name}-${lookup(allowed_to_push.value, "deploy_key_title", "")}"].deploy_key_id : null
+  allowed_to_push = [
+    for entry in lookup(each.value.branch, "allowed_to_push", []) : {
+      access_level  = lookup(entry, "access_level", null)
+      user_id       = contains(keys(local.exists_users), lookup(entry, "user_email", "")) ? local.exists_users[entry.user_email].id : null
+      group_id      = contains(keys(local.exists_groups), lookup(entry, "group", "")) ? local.exists_groups[entry.group][0].group_id : null
+      deploy_key_id = lookup(entry, "deploy_key_title", null) != null && contains(keys(local.exists_deploy_keys), "${each.value.project_namespace}-${each.value.project_name}-${lookup(entry, "deploy_key_title", "")}") ? local.exists_deploy_keys["${each.value.project_namespace}-${each.value.project_name}-${lookup(entry, "deploy_key_title", "")}"].deploy_key_id : null
     }
-  }
+  ]
 
-  # Dynamic blocks for allowed_to_merge
-  dynamic "allowed_to_merge" {
-    for_each = lookup(each.value.branch, "allowed_to_merge", [])
-    content {
-      user_id  = contains(keys(local.exists_users), lookup(allowed_to_merge.value, "user_email", "")) ? local.exists_users[allowed_to_merge.value.user_email].id : null
-      group_id = contains(keys(local.exists_groups), lookup(allowed_to_merge.value, "group", "")) ? local.exists_groups[allowed_to_merge.value.group][0].group_id : null
+  allowed_to_merge = [
+    for entry in lookup(each.value.branch, "allowed_to_merge", []) : {
+      access_level = lookup(entry, "access_level", null)
+      user_id      = contains(keys(local.exists_users), lookup(entry, "user_email", "")) ? local.exists_users[entry.user_email].id : null
+      group_id     = contains(keys(local.exists_groups), lookup(entry, "group", "")) ? local.exists_groups[entry.group][0].group_id : null
     }
-  }
+  ]
 
-  # Dynamic blocks for allowed_to_unprotect
-  dynamic "allowed_to_unprotect" {
-    for_each = lookup(each.value.branch, "allowed_to_unprotect", [])
-    content {
-      user_id  = contains(keys(local.exists_users), lookup(allowed_to_unprotect.value, "user_email", "")) ? local.exists_users[allowed_to_unprotect.value.user_email].id : null
-      group_id = contains(keys(local.exists_groups), lookup(allowed_to_unprotect.value, "group", "")) ? local.exists_groups[allowed_to_unprotect.value.group][0].group_id : null
+  allowed_to_unprotect = [
+    for entry in lookup(each.value.branch, "allowed_to_unprotect", []) : {
+      access_level = lookup(entry, "access_level", null)
+      user_id      = contains(keys(local.exists_users), lookup(entry, "user_email", "")) ? local.exists_users[entry.user_email].id : null
+      group_id     = contains(keys(local.exists_groups), lookup(entry, "group", "")) ? local.exists_groups[entry.group][0].group_id : null
     }
-  }
+  ]
 }
 
 resource "gitlab_repository_file" "this" {
@@ -1385,7 +1461,7 @@ resource "gitlab_repository_file" "this" {
 }
 
 ##integrations
-resource "gitlab_integration_emails_on_push" "this" {
+resource "gitlab_project_integration_emails_on_push" "this" {
   for_each = {
     for project in var.gitlab_projects :
     "${project.namespace}-${project.name}-${lookup(project.settings.integration_emails_on_push, "recipients", "no-recipient")}" => {
@@ -1405,7 +1481,7 @@ resource "gitlab_integration_emails_on_push" "this" {
   tag_push_events           = each.value.integration.tag_push_events
 }
 
-resource "gitlab_integration_external_wiki" "this" {
+resource "gitlab_project_integration_external_wiki" "this" {
   for_each = {
     for project in var.gitlab_projects :
     "${project.namespace}-${project.name}-${lookup(project.settings.integration_external_wiki, "external_wiki_url", "no-url")}" => {
@@ -1420,7 +1496,7 @@ resource "gitlab_integration_external_wiki" "this" {
   external_wiki_url = each.value.integration.external_wiki_url
 }
 
-resource "gitlab_integration_github" "this" {
+resource "gitlab_project_integration_github" "this" {
   for_each = {
     for project in var.gitlab_projects :
     "${project.namespace}-${project.name}-${lookup(project.settings.integration_github, "repository_url", "no-url")}" => {
@@ -1437,7 +1513,7 @@ resource "gitlab_integration_github" "this" {
   static_context = lookup(each.value.integration, "static_context", false)
 }
 
-resource "gitlab_integration_jira" "this" {
+resource "gitlab_project_integration_jira" "this" {
   for_each = {
     for project in var.gitlab_projects :
     "${project.namespace}-${project.name}-${lookup(project.settings.integration_jira, "url", "no-url")}" => {
@@ -1466,7 +1542,7 @@ resource "gitlab_integration_jira" "this" {
   use_inherited_settings          = each.value.integration.use_inherited_settings
 }
 
-resource "gitlab_integration_microsoft_teams" "this" {
+resource "gitlab_project_integration_microsoft_teams" "this" {
   for_each = {
     for project in var.gitlab_projects :
     "${project.namespace}-${project.name}-${lookup(project.settings.integration_microsoft_teams, "webhook", "no-webhook")}" => {
@@ -1492,7 +1568,7 @@ resource "gitlab_integration_microsoft_teams" "this" {
   wiki_page_events             = each.value.integration.wiki_page_events
 }
 
-resource "gitlab_integration_pipelines_email" "this" {
+resource "gitlab_project_integration_pipelines_email" "this" {
   for_each = {
     for project in var.gitlab_projects :
     "${project.namespace}-${project.name}-${join("-", lookup(project.settings.integration_pipelines_email, "recipients", ["no-recipients"]))}" => {
@@ -1545,43 +1621,41 @@ resource "gitlab_integration_slack" "this" {
 }
 
 # Combine Project and Group Deploy Tokens
-resource "gitlab_deploy_token" "this" {
-  for_each = merge(
-    merge([
-      for project in var.gitlab_projects : {
-        for token in lookup(project.settings, "deploy_tokens", []) :
-        "project-${project.namespace}-${project.name}-${token.name}" => {
-          type         = "project"
-          name         = token.name
-          namespace    = project.namespace
-          entity_name  = project.name
-          deploy_token = token
-          entity_id    = gitlab_project.this["${project.namespace}/${project.name}"].id
-        }
+# Project deploy tokens
+resource "gitlab_project_deploy_token" "this" {
+  for_each = merge([
+    for project in var.gitlab_projects : {
+      for token in lookup(project.settings, "deploy_tokens", []) :
+      "project-${project.namespace}-${project.name}-${token.name}" => {
+        deploy_token = token
+        entity_id    = gitlab_project.this["${project.namespace}/${project.name}"].id
       }
-    ]...),
-    merge([
-      for group in var.gitlab_groups : {
-        for token in lookup(group.settings, "deploy_tokens", []) : (
-          contains(keys(group), "parent")
-          ? "group-${group.parent}/${group.name}-${token.name}" # Include parent in the key if it exists
-          : "group-${group.name}-${token.name}"                 # Fallback to group name only if no parent
-          ) => {
-          type         = "group"
-          parent       = lookup(group, "parent", null)
-          name         = token.name
-          entity_name  = contains(keys(group), "parent") ? "${group.parent}/${group.name}" : group.name
-          deploy_token = token
-          entity_id    = contains(keys(group), "parent") ? gitlab_group.subgroups["${group.parent}/${group.name}"].id : gitlab_group.parent_groups[group.name].id
-        }
+    }
+  ]...)
+
+  project    = each.value.entity_id
+  name       = each.value.deploy_token.name
+  scopes     = each.value.deploy_token.scopes
+  expires_at = lookup(each.value.deploy_token, "expires_at", null)
+  username   = lookup(each.value.deploy_token, "username", null)
+}
+
+# Group deploy tokens
+resource "gitlab_group_deploy_token" "this" {
+  for_each = merge([
+    for group in var.gitlab_groups : {
+      for token in lookup(group.settings, "deploy_tokens", []) : (
+        contains(keys(group), "parent")
+        ? "group-${group.parent}/${group.name}-${token.name}" # Include parent in the key if it exists
+        : "group-${group.name}-${token.name}"                 # Fallback to group name only if no parent
+        ) => {
+        deploy_token = token
+        entity_id    = contains(keys(group), "parent") ? gitlab_group.subgroups["${group.parent}/${group.name}"].id : gitlab_group.parent_groups[group.name].id
       }
-    ]...)
-  )
+    }
+  ]...)
 
-  # Conditional assignment for project or group
-  project = each.value.type == "project" ? each.value.entity_id : null
-  group   = each.value.type == "group" ? each.value.entity_id : null
-
+  group      = each.value.entity_id
   name       = each.value.deploy_token.name
   scopes     = each.value.deploy_token.scopes
   expires_at = lookup(each.value.deploy_token, "expires_at", null)
