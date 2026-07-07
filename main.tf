@@ -480,11 +480,6 @@ resource "gitlab_group_variable" "this" {
   variable_type     = lookup(each.value.variable, "variable_type", "env_var")
 }
 
-# Data sources to retrieve users and groups from GitLab
-data "gitlab_users" "this" {}
-
-data "gitlab_groups" "this" {}
-
 # Locals to map users and groups for dynamic references
 locals {
   label_map = { for group_name, label in gitlab_group_label.this : label.name => label.label_id }
@@ -502,14 +497,94 @@ locals {
     ] if contains(keys(lookup(group, "settings", {})), "share_groups")
   ]))
 
-  # Group by username for users; this should not have duplicates
-  exists_users = { for user in data.gitlab_users.this.users : user.email => user }
+  # Every email referenced by *_email keys across projects, so we look up exactly
+  # those users instead of paging through the whole instance (data.gitlab_users
+  # is non-deterministic on large instances: the user list can differ between two
+  # reads a minute apart, which flips which allowed_to_* entries resolve).
+  referenced_user_emails = toset(compact(flatten([
+    for project in var.gitlab_projects : concat(
+      flatten([for rule in lookup(project.settings, "approval_rules", []) : lookup(rule, "user_emails", [])]),
+      [for member in lookup(project.settings, "memberships", []) : lookup(member, "user_email", null)],
+      flatten([
+        for env in lookup(project.settings, "protected_environments", []) : concat(
+          [for lvl in lookup(env, "deploy_access_levels", []) : lookup(lvl, "user_email", null)],
+          [for rule in lookup(env, "approval_rules", []) : lookup(rule, "user_email", null)],
+        )
+      ]),
+      flatten([
+        for branch in lookup(project.settings, "branches", []) : concat(
+          [for entry in lookup(branch, "allowed_to_push", []) : lookup(entry, "user_email", null)],
+          [for entry in lookup(branch, "allowed_to_merge", []) : lookup(entry, "user_email", null)],
+          [for entry in lookup(branch, "allowed_to_unprotect", []) : lookup(entry, "user_email", null)],
+        )
+      ]),
+    )
+  ])))
 
-  # Group by name for groups, allowing for duplicates
-  exists_groups = { for group in data.gitlab_groups.this.groups : group.full_path => group... }
+  # Group full_paths managed by this module invocation, excluded from the external
+  # group lookup below since they don't exist yet at plan time for a brand-new group.
+  managed_group_paths = toset(concat(keys(gitlab_group.parent_groups), keys(gitlab_group.subgroups)))
+
+  # Same rationale as referenced_user_emails: look up exactly the group full_paths
+  # this config references, instead of paging through every group on the instance.
+  referenced_group_paths = toset([
+    for path in compact(flatten([
+      [for project in var.gitlab_projects : project.namespace],
+      flatten([for project in var.gitlab_projects : [for rule in lookup(project.settings, "approval_rules", []) : lookup(rule, "group_names", [])]]),
+      flatten([
+        for project in var.gitlab_projects : [
+          for env in lookup(project.settings, "protected_environments", []) : concat(
+            [for lvl in lookup(env, "deploy_access_levels", []) : lookup(lvl, "group", null)],
+            [for rule in lookup(env, "approval_rules", []) : lookup(rule, "group", null)],
+          )
+        ]
+      ]),
+      [for project in var.gitlab_projects : [for sg in lookup(project.settings, "share_groups", []) : sg.group]],
+      flatten([
+        for project in var.gitlab_projects : [
+          for branch in lookup(project.settings, "branches", []) : concat(
+            [for entry in lookup(branch, "allowed_to_push", []) : lookup(entry, "group", null)],
+            [for entry in lookup(branch, "allowed_to_merge", []) : lookup(entry, "group", null)],
+            [for entry in lookup(branch, "allowed_to_unprotect", []) : lookup(entry, "group", null)],
+          )
+        ]
+      ]),
+    ])) : path if !contains(local.managed_group_paths, path)
+  ])
+
+  # Groups managed by this module invocation, in the same [{ group_id = ... }] shape
+  # as the external lookup below, so every exists_groups[path][0].group_id call site
+  # resolves internally-managed groups too (not just ones that already existed).
+  managed_groups_by_path = merge(
+    { for name, group in gitlab_group.parent_groups : name => [{ group_id = group.id }] },
+    { for path, group in gitlab_group.subgroups : path => [{ group_id = group.id }] },
+  )
+
+  # Group by name for groups, allowing for duplicates (keeps the [0] indexing used
+  # at every exists_groups[...] call site unchanged)
+  exists_groups = merge(
+    local.managed_groups_by_path,
+    { for path, group in data.gitlab_group.referenced : path => [group] },
+  )
+
+  # Group by email for users; this should not have duplicates
+  exists_users = { for email, user in data.gitlab_user.referenced : email => user }
 
   # Map deploy keys by project namespace/name and key title for easy lookup
   exists_deploy_keys = { for key_id, key in gitlab_deploy_key.this : key_id => key }
+}
+
+# Resolve only the users actually referenced by email across all project settings
+data "gitlab_user" "referenced" {
+  for_each          = local.referenced_user_emails
+  email             = each.value
+  email_exact_match = true
+}
+
+# Resolve only the groups actually referenced that aren't already managed by this module
+data "gitlab_group" "referenced" {
+  for_each  = local.referenced_group_paths
+  full_path = each.value
 }
 
 # Create GitLab projects dynamically
