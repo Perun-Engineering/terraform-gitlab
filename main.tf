@@ -1323,6 +1323,7 @@ resource "gitlab_branch_protection" "ee" {
 
   allowed_to_push = [
     for entry in lookup(each.value.branch, "allowed_to_push", []) : {
+      access_level  = lookup(entry, "access_level", null)
       user_id       = contains(keys(local.exists_users), lookup(entry, "user_email", "")) ? local.exists_users[entry.user_email].id : null
       group_id      = contains(keys(local.exists_groups), lookup(entry, "group", "")) ? local.exists_groups[entry.group][0].group_id : null
       deploy_key_id = lookup(entry, "deploy_key_title", null) != null && contains(keys(local.exists_deploy_keys), "${each.value.project_namespace}-${each.value.project_name}-${lookup(entry, "deploy_key_title", "")}") ? local.exists_deploy_keys["${each.value.project_namespace}-${each.value.project_name}-${lookup(entry, "deploy_key_title", "")}"].deploy_key_id : null
@@ -1331,15 +1332,17 @@ resource "gitlab_branch_protection" "ee" {
 
   allowed_to_merge = [
     for entry in lookup(each.value.branch, "allowed_to_merge", []) : {
-      user_id  = contains(keys(local.exists_users), lookup(entry, "user_email", "")) ? local.exists_users[entry.user_email].id : null
-      group_id = contains(keys(local.exists_groups), lookup(entry, "group", "")) ? local.exists_groups[entry.group][0].group_id : null
+      access_level = lookup(entry, "access_level", null)
+      user_id      = contains(keys(local.exists_users), lookup(entry, "user_email", "")) ? local.exists_users[entry.user_email].id : null
+      group_id     = contains(keys(local.exists_groups), lookup(entry, "group", "")) ? local.exists_groups[entry.group][0].group_id : null
     }
   ]
 
   allowed_to_unprotect = [
     for entry in lookup(each.value.branch, "allowed_to_unprotect", []) : {
-      user_id  = contains(keys(local.exists_users), lookup(entry, "user_email", "")) ? local.exists_users[entry.user_email].id : null
-      group_id = contains(keys(local.exists_groups), lookup(entry, "group", "")) ? local.exists_groups[entry.group][0].group_id : null
+      access_level = lookup(entry, "access_level", null)
+      user_id      = contains(keys(local.exists_users), lookup(entry, "user_email", "")) ? local.exists_users[entry.user_email].id : null
+      group_id     = contains(keys(local.exists_groups), lookup(entry, "group", "")) ? local.exists_groups[entry.group][0].group_id : null
     }
   ]
 }
