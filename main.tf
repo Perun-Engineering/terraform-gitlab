@@ -523,7 +523,15 @@ locals {
 
   # Group full_paths managed by this module invocation, excluded from the external
   # group lookup below since they don't exist yet at plan time for a brand-new group.
-  managed_group_paths = toset(concat(keys(gitlab_group.parent_groups), keys(gitlab_group.subgroups)))
+  # Derived straight from var.gitlab_groups (mirroring the gitlab_group.parent_groups/
+  # subgroups for_each keys below) rather than keys(gitlab_group.*): referencing the
+  # resource itself makes data.gitlab_group.referenced's for_each depend on resource
+  # attributes, which breaks operations that don't plan the whole graph first, such
+  # as `terraform import`.
+  managed_group_paths = toset([
+    for group in var.gitlab_groups :
+    contains(keys(group), "parent") ? "${group.parent}/${group.name}" : group.name
+  ])
 
   # Same rationale as referenced_user_emails: look up exactly the group full_paths
   # this config references, instead of paging through every group on the instance.
@@ -1355,6 +1363,15 @@ resource "gitlab_branch" "this" {
   name    = each.value.branch.name
   project = gitlab_project.this["${each.value.project_namespace}/${each.value.project_name}"].id
   ref     = each.value.branch.ref
+
+  # ref is only populated in state on creation; the provider can't read it back
+  # (GitLab has no "ref" concept for an existing branch). Without this, importing
+  # an existing branch or a branch that has since diverged leaves ref unset in
+  # state, and since ref is ForceNew, the next plan destroys and recreates the
+  # branch, discarding its real commit history.
+  lifecycle {
+    ignore_changes = [ref]
+  }
 }
 
 # Create GitLab Branch Protection for Protected Branches
