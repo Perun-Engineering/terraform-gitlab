@@ -523,7 +523,15 @@ locals {
 
   # Group full_paths managed by this module invocation, excluded from the external
   # group lookup below since they don't exist yet at plan time for a brand-new group.
-  managed_group_paths = toset(concat(keys(gitlab_group.parent_groups), keys(gitlab_group.subgroups)))
+  # Derived straight from var.gitlab_groups (mirroring the gitlab_group.parent_groups/
+  # subgroups for_each keys below) rather than keys(gitlab_group.*): referencing the
+  # resource itself makes data.gitlab_group.referenced's for_each depend on resource
+  # attributes, which breaks operations that don't plan the whole graph first, such
+  # as `terraform import`.
+  managed_group_paths = toset([
+    for group in var.gitlab_groups :
+    contains(keys(group), "parent") ? "${group.parent}/${group.name}" : group.name
+  ])
 
   # Same rationale as referenced_user_emails: look up exactly the group full_paths
   # this config references, instead of paging through every group on the instance.
