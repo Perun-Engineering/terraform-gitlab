@@ -6,7 +6,7 @@ locals {
 }
 
 terraform_version_constraint  = ">= 1.8.0"
-terragrunt_version_constraint = "= 0.67.1"
+terragrunt_version_constraint = "= 0.99.5"
 # iam_role                      = local.iam_role
 
 # Configure Terragrunt to automatically store tfstate files in an S3 bucket
