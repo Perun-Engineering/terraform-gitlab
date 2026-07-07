@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.1](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.0.0...v2.0.1) (2026-07-07)
+
+
+### Bug Fixes
+
+* Import-safety fixes for managed group lookups and gitlab_branch ([#11](https://github.com/Perun-Engineering/terraform-gitlab/issues/11)) ([0e8291b](https://github.com/Perun-Engineering/terraform-gitlab/commit/0e8291baf60db7bc262b953db0efe7ceca151cbc))
+
 ## [2.0.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v1.4.0...v2.0.0) (2026-07-07)
 
 
