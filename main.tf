@@ -1363,6 +1363,15 @@ resource "gitlab_branch" "this" {
   name    = each.value.branch.name
   project = gitlab_project.this["${each.value.project_namespace}/${each.value.project_name}"].id
   ref     = each.value.branch.ref
+
+  # ref is only populated in state on creation; the provider can't read it back
+  # (GitLab has no "ref" concept for an existing branch). Without this, importing
+  # an existing branch or a branch that has since diverged leaves ref unset in
+  # state, and since ref is ForceNew, the next plan destroys and recreates the
+  # branch, discarding its real commit history.
+  lifecycle {
+    ignore_changes = [ref]
+  }
 }
 
 # Create GitLab Branch Protection for Protected Branches
