@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.0.1...v2.1.0) (2026-09-08)
+
+
+### Features
+
+* Allow pipeline triggerer to approve deployment ([e59d5e9](https://github.com/Perun-Engineering/terraform-gitlab/commit/e59d5e9ba1ceb937ee7fcd6eeb4d361c9d863125))
+
 ## [2.0.1](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.0.0...v2.0.1) (2026-07-07)
 
 
