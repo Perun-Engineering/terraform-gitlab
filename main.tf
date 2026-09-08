@@ -614,6 +614,7 @@ resource "gitlab_project" "this" {
   )
 
   allow_merge_on_skipped_pipeline                  = lookup(each.value, "allow_merge_on_skipped_pipeline", null)
+  allow_pipeline_trigger_approve_deployment        = lookup(each.value, "allow_pipeline_trigger_approve_deployment", null)
   analytics_access_level                           = lookup(each.value, "analytics_access_level", null)
   archive_on_destroy                               = lookup(each.value, "archive_on_destroy", null)
   archived                                         = lookup(each.value, "archived", null)
