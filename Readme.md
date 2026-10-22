@@ -16,7 +16,12 @@ This Terraform module provides resources to manage GitLab groups, projects, inte
 ## Requirements
 
 - Terraform 1.8.0 or higher.
-- GitLab Provider for Terraform 19.0.0 or higher. See [docs/UPGRADE-2.0.md](docs/UPGRADE-2.0.md) if upgrading from a 18.x-based release of this module.
+- GitLab Provider for Terraform 19.5.0. The module pins this exact version. After you change the module version, run `terraform init -upgrade`. See [docs/UPGRADE-2.0.md](docs/UPGRADE-2.0.md) if upgrading from a 18.x-based release of this module.
+
+## Notes
+
+- `pipeline_schedules[*].ref` accepts a short branch name (`main`) or a full ref (`refs/heads/main`, `refs/tags/v1.0.0`). The module changes a short name to `refs/heads/<name>`. For a tag, use the full ref.
+- The provider deprecated the `push_rules` block of `gitlab_project` in 19.4.1 and removes it in 20.0. The module uses this block for project `push_rules`, and the plan shows a deprecation warning.
 
 ## Usage
 

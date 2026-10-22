@@ -1284,13 +1284,16 @@ resource "gitlab_pipeline_schedule" "this" {
         project_name      = project.name
         project_namespace = project.namespace
         pipeline_schedule = pipeline
+        # Provider >= 19.4.1 accepts only a full ref. A short ref is a branch name.
+        # The for_each key keeps the ref as written, so the addresses do not change.
+        full_ref = startswith(pipeline.ref, "refs/") ? pipeline.ref : "refs/heads/${pipeline.ref}"
       }
     }
   ]...)
 
   project        = gitlab_project.this["${each.value.project_namespace}/${each.value.project_name}"].id
   description    = each.value.pipeline_schedule.description
-  ref            = each.value.pipeline_schedule.ref
+  ref            = each.value.full_ref
   cron           = each.value.pipeline_schedule.cron
   active         = lookup(each.value.pipeline_schedule, "active", false)
   cron_timezone  = lookup(each.value.pipeline_schedule, "cron_timezone", "UTC")
