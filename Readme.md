@@ -99,6 +99,33 @@ The module accepts the following inputs:
 
 Refer to the variables.tf file for more details.
 
+## CI variables in many environment scopes
+
+A group or project can have one variable key in more than one `environment_scope`.
+Each key and `environment_scope` pair must be unique in its group or project. If it is not unique, the plan fails.
+
+The module puts masked and unmasked variables in different resources (`this_sensitive` and `this`).
+The `for_each` key of a variable depends on how many times its key occurs in its resource:
+
+| Key occurs | Project key | Group key |
+|---|---|---|
+| Once | `<namespace>-<project>-<KEY>` | `<group path>-<KEY>` |
+| More than once | `<namespace>-<project>-<KEY>:<environment_scope>` | `<group path>-<KEY>:<environment_scope>` |
+
+Thus the addresses of current variables do not change.
+
+**Caution:** If you add a second scope for a key that occurs once, the address of the first variable changes.
+The same occurs when you remove scopes until the key occurs once.
+Without a `moved` block, Terraform destroys the variable and creates it again.
+Add a `moved` block in your root module before you apply:
+
+```hcl
+moved {
+  from = module.gitlab.gitlab_project_variable.this["infra-api-UI_BUCKET"]
+  to   = module.gitlab.gitlab_project_variable.this["infra-api-UI_BUCKET:ui-uat"]
+}
+```
+
 ## Outputs
 
 The module provides the following outputs:

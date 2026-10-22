@@ -3,7 +3,16 @@ projects:
     create: true
     namespace: "alpha"
     visibility: private
-    settings: {}
+    settings:
+      # One key in two environment scopes. The module adds the scope to the for_each key:
+      # "alpha-project-beta-DEPLOY_ROLE_ARN:uat" and "alpha-project-beta-DEPLOY_ROLE_ARN:production".
+      variables:
+        - key: "DEPLOY_ROLE_ARN"
+          value: "arn:aws:iam::111111111111:role/deploy"
+          environment_scope: "uat"
+        - key: "DEPLOY_ROLE_ARN"
+          value: "arn:aws:iam::222222222222:role/deploy"
+          environment_scope: "production"
   - name: project-gamma
     create: true
     namespace: "alpha"

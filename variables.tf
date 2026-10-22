@@ -4,11 +4,29 @@
 variable "gitlab_groups" {
   description = "List of GitLab groups to manage."
   type        = any
+
+  validation {
+    condition = alltrue([
+      for group in var.gitlab_groups : length(distinct([
+        for variable in lookup(group.settings, "variables", []) : "${variable.key}:${lookup(variable, "environment_scope", "*")}"
+      ])) == length(lookup(group.settings, "variables", []))
+    ])
+    error_message = "Each group variable must have a unique key and environment_scope pair in its group."
+  }
 }
 
 variable "gitlab_projects" {
   description = "List of GitLab projects to manage."
   type        = any
+
+  validation {
+    condition = alltrue([
+      for project in var.gitlab_projects : length(distinct([
+        for variable in lookup(project.settings, "variables", []) : "${variable.key}:${lookup(variable, "environment_scope", "*")}"
+      ])) == length(lookup(project.settings, "variables", []))
+    ])
+    error_message = "Each project variable must have a unique key and environment_scope pair in its project."
+  }
 }
 
 variable "tier" {
