@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.1.0...v2.2.0) (2026-10-22)
+
+
+### Features
+
+* Support one CI variable key in many environment scopes ([#13](https://github.com/Perun-Engineering/terraform-gitlab/issues/13)) ([87220b6](https://github.com/Perun-Engineering/terraform-gitlab/commit/87220b6fe9263f3e275d714df98bfdbb0457dc9f))
+
 ## [2.1.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.0.1...v2.1.0) (2026-09-08)
 
 
