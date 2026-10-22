@@ -426,55 +426,87 @@ resource "gitlab_group_saml_link" "this" {
   saml_group_name = each.value.saml_link.saml_group_name
 }
 
+# CI variables of groups and projects.
+# The for_each key of a variable is "<owner>-<key>" when the key occurs once in its resource.
+# When the key occurs more than once in its resource, the key gets the suffix ":<environment_scope>".
+# Thus the addresses from before this rule do not change.
+# The validation of var.gitlab_groups and var.gitlab_projects makes sure that each key and environment_scope pair is unique.
+locals {
+  ci_variables = concat(
+    flatten([
+      for group in var.gitlab_groups : [
+        for variable in lookup(group.settings, "variables", []) : {
+          kind      = "group"
+          owner     = contains(keys(group), "parent") ? "${group.parent}/${group.name}" : group.name
+          parent    = lookup(group, "parent", null)
+          base_key  = contains(keys(group), "parent") ? "${group.parent}/${group.name}-${variable.key}" : "${group.name}-${variable.key}"
+          scope     = lookup(variable, "environment_scope", "*")
+          is_masked = lookup(variable, "masked", false) == true
+          variable  = variable
+        }
+      ]
+    ]),
+    flatten([
+      for project in var.gitlab_projects : [
+        for variable in lookup(project.settings, "variables", []) : {
+          kind      = "project"
+          owner     = "${project.namespace}/${project.name}"
+          parent    = null
+          base_key  = "${project.namespace}-${project.name}-${variable.key}"
+          scope     = lookup(variable, "environment_scope", "*")
+          is_masked = lookup(variable, "masked", false) == true
+          variable  = variable
+        }
+      ]
+    ]),
+  )
+
+  # Count each base key in its resource: the kind and the masked flag select the resource.
+  ci_variable_key_counts = {
+    for v in local.ci_variables : "${v.kind}:${v.is_masked}:${v.base_key}" => v.base_key...
+  }
+
+  ci_variables_keyed = [
+    for v in local.ci_variables : merge(v, {
+      key = (
+        length(local.ci_variable_key_counts["${v.kind}:${v.is_masked}:${v.base_key}"]) > 1
+        ? "${v.base_key}:${v.scope}"
+        : v.base_key
+      )
+    })
+  ]
+
+  group_variables_sensitive   = { for v in local.ci_variables_keyed : v.key => v if v.kind == "group" && v.is_masked }
+  group_variables             = { for v in local.ci_variables_keyed : v.key => v if v.kind == "group" && !v.is_masked }
+  project_variables_sensitive = { for v in local.ci_variables_keyed : v.key => v if v.kind == "project" && v.is_masked }
+  project_variables           = { for v in local.ci_variables_keyed : v.key => v if v.kind == "project" && !v.is_masked }
+}
+
 # Create GitLab Group Variables
 resource "gitlab_group_variable" "this_sensitive" {
-  for_each = merge([
-    for group in var.gitlab_groups : {
-      for variable in lookup(group.settings, "variables", []) : (
-        contains(keys(group), "parent")
-        ? "${group.parent}/${group.name}-${variable.key}" # Include parent in the key if it exists
-        : "${group.name}-${variable.key}"                 # Fallback to group name only if no parent
-        ) => {
-        group_name = contains(keys(group), "parent") ? "${group.parent}/${group.name}" : group.name
-        parent     = lookup(group, "parent", null)
-        variable   = variable
-      } if lookup(variable, "masked", false) == true # Only sensitive ones
-    }
-  ]...)
+  for_each = local.group_variables_sensitive
 
-  group             = each.value.parent == null ? gitlab_group.parent_groups[each.value.group_name].id : gitlab_group.subgroups[each.value.group_name].id
+  group             = each.value.parent == null ? gitlab_group.parent_groups[each.value.owner].id : gitlab_group.subgroups[each.value.owner].id
   key               = each.value.variable.key
   value             = sensitive(each.value.variable.value)
   protected         = lookup(each.value.variable, "protected", false)
   masked            = lookup(each.value.variable, "masked", false)
   hidden            = lookup(each.value.variable, "hidden", false)
-  environment_scope = lookup(each.value.variable, "environment_scope", "*")
+  environment_scope = each.value.scope
   description       = lookup(each.value.variable, "description", null)
   raw               = lookup(each.value.variable, "raw", false)
   variable_type     = lookup(each.value.variable, "variable_type", "env_var")
 }
 
 resource "gitlab_group_variable" "this" {
-  for_each = merge([
-    for group in var.gitlab_groups : {
-      for variable in lookup(group.settings, "variables", []) : (
-        contains(keys(group), "parent")
-        ? "${group.parent}/${group.name}-${variable.key}" # Include parent in the key if it exists
-        : "${group.name}-${variable.key}"                 # Fallback to group name only if no parent
-        ) => {
-        group_name = contains(keys(group), "parent") ? "${group.parent}/${group.name}" : group.name
-        parent     = lookup(group, "parent", null)
-        variable   = variable
-      } if lookup(variable, "masked", false) == false # Only non-sensitive ones
-    }
-  ]...)
+  for_each = local.group_variables
 
-  group             = each.value.parent == null ? gitlab_group.parent_groups[each.value.group_name].id : gitlab_group.subgroups[each.value.group_name].id
+  group             = each.value.parent == null ? gitlab_group.parent_groups[each.value.owner].id : gitlab_group.subgroups[each.value.owner].id
   key               = each.value.variable.key
   value             = each.value.variable.value
   protected         = lookup(each.value.variable, "protected", false)
   masked            = lookup(each.value.variable, "masked", false)
-  environment_scope = lookup(each.value.variable, "environment_scope", "*")
+  environment_scope = each.value.scope
   description       = lookup(each.value.variable, "description", null)
   raw               = lookup(each.value.variable, "raw", false)
   variable_type     = lookup(each.value.variable, "variable_type", "env_var")
@@ -1177,24 +1209,15 @@ resource "gitlab_project_share_group" "this" {
 }
 
 resource "gitlab_project_variable" "this_sensitive" {
-  for_each = merge([
-    for project in var.gitlab_projects : {
-      for variable in lookup(project.settings, "variables", []) :
-      "${project.namespace}-${project.name}-${variable.key}" => {
-        project_name      = project.name
-        project_namespace = project.namespace
-        variable          = variable
-      } if lookup(variable, "masked", false) == true # Only sensitive ones
-    }
-  ]...)
+  for_each = local.project_variables_sensitive
 
-  project           = gitlab_project.this["${each.value.project_namespace}/${each.value.project_name}"].id
+  project           = gitlab_project.this[each.value.owner].id
   key               = each.value.variable.key
   value             = sensitive(each.value.variable.value)
   protected         = lookup(each.value.variable, "protected", false)
   masked            = lookup(each.value.variable, "masked", false)
   hidden            = lookup(each.value.variable, "hidden", false)
-  environment_scope = lookup(each.value.variable, "environment_scope", "*")
+  environment_scope = each.value.scope
   description       = lookup(each.value.variable, "description", null)
   raw               = lookup(each.value.variable, "raw", false)
   variable_type     = lookup(each.value.variable, "variable_type", "env_var")
@@ -1202,23 +1225,14 @@ resource "gitlab_project_variable" "this_sensitive" {
 
 
 resource "gitlab_project_variable" "this" {
-  for_each = merge([
-    for project in var.gitlab_projects : {
-      for variable in lookup(project.settings, "variables", []) :
-      "${project.namespace}-${project.name}-${variable.key}" => {
-        project_name      = project.name
-        project_namespace = project.namespace
-        variable          = variable
-      } if lookup(variable, "masked", false) == false # Only non-sensitive ones
-    }
-  ]...)
+  for_each = local.project_variables
 
-  project           = gitlab_project.this["${each.value.project_namespace}/${each.value.project_name}"].id
+  project           = gitlab_project.this[each.value.owner].id
   key               = each.value.variable.key
   value             = each.value.variable.value
   protected         = lookup(each.value.variable, "protected", false)
   masked            = lookup(each.value.variable, "masked", false)
-  environment_scope = lookup(each.value.variable, "environment_scope", "*")
+  environment_scope = each.value.scope
   description       = lookup(each.value.variable, "description", null)
   raw               = lookup(each.value.variable, "raw", false)
   variable_type     = lookup(each.value.variable, "variable_type", "env_var")
