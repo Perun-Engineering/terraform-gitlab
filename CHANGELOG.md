@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.1](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.2.0...v2.2.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* Update GitLab provider to 19.5.0 ([#14](https://github.com/Perun-Engineering/terraform-gitlab/issues/14)) ([41001fe](https://github.com/Perun-Engineering/terraform-gitlab/commit/41001fef7681d98737c850d5dfd29ef88af92124))
+
 ## [2.2.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.1.0...v2.2.0) (2026-10-22)
 
 
