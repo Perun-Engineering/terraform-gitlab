@@ -11,6 +11,11 @@ output "subgroups_group_ids" {
   value       = [for group in gitlab_group.subgroups : group.id]
 }
 
+output "nested_subgroups_group_ids" {
+  description = "List of created nested GitLab subgroup IDs."
+  value       = [for group in gitlab_group.nested_subgroups : group.id]
+}
+
 output "project_ids" {
   description = "List of created GitLab project IDs."
   value       = [for project in gitlab_project.this : project.id]

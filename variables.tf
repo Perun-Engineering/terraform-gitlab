@@ -13,6 +13,13 @@ variable "gitlab_groups" {
     ])
     error_message = "Each group variable must have a unique key and environment_scope pair in its group."
   }
+
+  validation {
+    condition = alltrue([
+      for group in var.gitlab_groups : length(split("/", lookup(group, "parent", ""))) <= 2
+    ])
+    error_message = "A group's parent can be a top-level group (\"infra\") or a subgroup (\"infra/terraform\"), not deeper."
+  }
 }
 
 variable "gitlab_projects" {
