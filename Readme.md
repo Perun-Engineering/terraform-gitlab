@@ -131,6 +131,27 @@ moved {
 }
 ```
 
+## Nested subgroups
+
+A group can be up to three levels deep: a top-level group, a subgroup, and a group in that subgroup.
+For a group in a subgroup, set `parent` to the key of the subgroup, `<parent>/<name>`:
+
+```yaml
+groups:
+  - name: infra
+  - name: terraform
+    parent: infra
+  - name: terraform-aws-modules
+    parent: infra/terraform   # creates infra/terraform/terraform-aws-modules
+```
+
+`parent` uses the subgroup's `name`, not its `path`. Keep `name` and `path` the same, so `parent` is also the full path of the parent group, and a project can use it as `namespace`.
+
+Groups whose parent is a top-level group stay in `gitlab_group.subgroups`. Groups whose parent is a subgroup go to `gitlab_group.nested_subgroups`. Thus the addresses of current groups do not change.
+A `parent` deeper than a subgroup (`a/b/c`) fails validation.
+
+See [examples/terraform/groups/infra.yaml](examples/terraform/groups/infra.yaml) and [examples/terraform/projects/infra_projects.yaml](examples/terraform/projects/infra_projects.yaml).
+
 ## Outputs
 
 The module provides the following outputs:

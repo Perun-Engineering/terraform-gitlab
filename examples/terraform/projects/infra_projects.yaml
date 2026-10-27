@@ -1,0 +1,8 @@
+projects:
+  # A project in a nested subgroup: namespace is the full path of the group.
+  - name: terraform-aws-vpc
+    create: true
+    namespace: "infra/terraform/terraform-aws-modules"
+    visibility: internal
+    description: "Mirror of github.com/terraform-aws-modules/terraform-aws-vpc"
+    settings: {}

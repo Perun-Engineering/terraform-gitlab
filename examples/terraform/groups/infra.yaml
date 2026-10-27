@@ -1,0 +1,28 @@
+groups:
+  - name: infra
+    create: true
+    settings:
+      visibility: private
+      description: "Infrastructure top-level group"
+
+  - name: terraform
+    create: true
+    parent: infra
+    settings:
+      path: terraform
+      visibility: internal
+      description: "Terraform modules mirrored from upstream"
+      share_groups:
+        - share_group_id: "roles/project-sre-dev"
+          group_access: maintainer
+
+  # A group under a subgroup. parent is the key of the subgroup, "<parent>/<name>",
+  # with the subgroup's name, not its path. Keep name and path the same to make
+  # parent equal to the full path of the parent group.
+  - name: terraform-aws-modules
+    create: true
+    parent: infra/terraform
+    settings:
+      path: terraform-aws-modules
+      visibility: internal
+      description: "Mirrors of github.com/terraform-aws-modules"
