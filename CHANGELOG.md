@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.2.1...v2.3.0) (2026-10-27)
+
+
+### Features
+
+* Support groups nested under a subgroup ([17a6018](https://github.com/Perun-Engineering/terraform-gitlab/commit/17a601845bcea1b11c6535ef515cac521b3f7ae7))
+
 ## [2.2.1](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.2.0...v2.2.1) (2026-10-23)
 
 
