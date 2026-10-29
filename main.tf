@@ -1250,6 +1250,11 @@ resource "gitlab_project_protected_environment" "this" {
       }
     ]
   ])
+
+  # GitLab accepts a group in deploy access levels or approval rules only once it is
+  # shared on the project itself, and silently drops it otherwise. Created in parallel
+  # with the share, the environment failed with "Deploy access levels is too short".
+  depends_on = [gitlab_project_share_group.this]
 }
 
 resource "gitlab_project_runner_enablement" "this" {
