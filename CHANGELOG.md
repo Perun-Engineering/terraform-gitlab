@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.1](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.3.0...v2.3.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* Create protected environments after project group shares ([e49088b](https://github.com/Perun-Engineering/terraform-gitlab/commit/e49088b38342ec1a985eeab9243a2e811b325a11))
+
 ## [2.3.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.2.1...v2.3.0) (2026-10-27)
 
 
