@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.2](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.3.1...v2.3.2) (2026-11-03)
+
+
+### Bug Fixes
+
+* pass protected, masked and environment_scope to access token variables ([8425eeb](https://github.com/Perun-Engineering/terraform-gitlab/commit/8425eebb3f08d7667c126783acaad2190eeec1cb))
+
 ## [2.3.1](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.3.0...v2.3.1) (2026-10-29)
 
 
