@@ -743,6 +743,7 @@ resource "gitlab_project" "this" {
   ci_config_path                                   = lookup(each.value, "ci_config_path", null)
   ci_default_git_depth                             = lookup(each.value, "ci_default_git_depth", null)
   ci_forward_deployment_enabled                    = lookup(each.value, "ci_forward_deployment_enabled", null)
+  ci_id_token_sub_claim_components                 = lookup(each.value, "ci_id_token_sub_claim_components", null)
   ci_restrict_pipeline_cancellation_role           = lookup(each.value, "ci_restrict_pipeline_cancellation_role", null)
   ci_separated_caches                              = lookup(each.value, "ci_separated_caches", null)
   container_registry_access_level                  = lookup(each.value, "container_registry_access_level", null)

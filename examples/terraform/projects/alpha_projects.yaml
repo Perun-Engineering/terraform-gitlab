@@ -26,6 +26,9 @@ projects:
     allow_merge_on_skipped_pipeline: true
     auto_devops_enabled: false
     default_branch: "main"
+    # Adds the environment to the sub claim of the CI/CD ID tokens. If the key is not set, GitLab uses project_path, ref_type, and ref.
+    # Caution: a cloud role that trusts the exact old sub stops matching. Update the role first.
+    ci_id_token_sub_claim_components: ["project_path", "ref_type", "ref", "environment_protected", "deployment_tier"]
     merge_requests_enabled: true
     issues_enabled: true
     container_expiration_policy:
