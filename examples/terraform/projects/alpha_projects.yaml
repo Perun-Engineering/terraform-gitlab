@@ -61,6 +61,10 @@ projects:
           scopes: ["api"]
           access_level: maintainer
           expires_at: "2024-09-30"
+          # variable_name: "BETA_TOKEN" # Optional. Puts the token in a CI/CD variable with this key.
+          # protected: true             # Optional. Default: true.
+          # masked: true                # Optional. Default: true.
+          # environment_scope: "*"      # Optional. Default: "*".
         - name: "gamma-token"
           scopes: ["read_repository"]
           access_level: maintainer

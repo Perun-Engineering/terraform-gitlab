@@ -131,6 +131,30 @@ moved {
 }
 ```
 
+## Access token variables
+
+A group or project access token can put its value in a CI/CD variable. Set `variable_name` on the token to the key of the variable.
+These token keys set the variable:
+
+| Key | Default | Description |
+|---|---|---|
+| `variable_name` | none | The key of the variable. If it is not set, the module does not create a variable. |
+| `protected` | `true` | Only pipelines on protected branches and tags get the variable. |
+| `masked` | `true` | The job logs do not show the value. |
+| `environment_scope` | `"*"` | The environments that get the variable. |
+
+```yaml
+access_tokens:
+  - name: mr-reporter
+    scopes: ["api"]
+    access_level: developer
+    expires_at: "2027-01-01"
+    variable_name: MR_API_TOKEN
+    protected: true
+```
+
+**Warning:** An unprotected variable with an `api` token is available to all pipelines on all branches. Keep `protected: true` if you do not have a strong reason.
+
 ## Nested subgroups
 
 A group can be up to three levels deep: a top-level group, a subgroup, and a group in that subgroup.

@@ -248,9 +248,12 @@ resource "gitlab_group_variable" "access_token_this" {
         ? "${group.parent}/${group.name}-${token.name}" # Use parent in the key if it exists
         : "${group.name}-${token.name}"                 # Fallback to group name only if no parent
         ) => {
-        group_name    = contains(keys(group), "parent") ? "${group.parent}/${group.name}" : group.name
-        parent        = lookup(group, "parent", null)
-        variable_name = lookup(token, "variable_name", null)
+        group_name        = contains(keys(group), "parent") ? "${group.parent}/${group.name}" : group.name
+        parent            = lookup(group, "parent", null)
+        variable_name     = lookup(token, "variable_name", null)
+        protected         = lookup(token, "protected", true)
+        masked            = lookup(token, "masked", true)
+        environment_scope = lookup(token, "environment_scope", "*")
       } if lookup(token, "variable_name", null) != null # Only create variables if `variable_name` is set
     }
   ]...)
@@ -258,9 +261,9 @@ resource "gitlab_group_variable" "access_token_this" {
   group             = local.group_ids[each.value.group_name]
   key               = each.value.variable_name
   value             = sensitive(gitlab_group_access_token.this[each.key].token)
-  protected         = true
-  masked            = true
-  environment_scope = "*"
+  protected         = each.value.protected
+  masked            = each.value.masked
+  environment_scope = each.value.environment_scope
   description       = "Generated access token for ${gitlab_group_access_token.this[each.key].name}"
 }
 
@@ -865,8 +868,11 @@ resource "gitlab_project_variable" "access_token_this" {
   for_each = merge([
     for project in var.gitlab_projects : {
       for token in lookup(project.settings, "access_tokens", []) : "${project.namespace}-${project.name}-${token.name}" => {
-        project_id    = gitlab_project.this["${project.namespace}/${project.name}"].id
-        variable_name = lookup(token, "variable_name", null)
+        project_id        = gitlab_project.this["${project.namespace}/${project.name}"].id
+        variable_name     = lookup(token, "variable_name", null)
+        protected         = lookup(token, "protected", true)
+        masked            = lookup(token, "masked", true)
+        environment_scope = lookup(token, "environment_scope", "*")
       } if lookup(token, "variable_name", null) != null # Only create variables if `variable_name` is set
     }
   ]...)
@@ -874,9 +880,9 @@ resource "gitlab_project_variable" "access_token_this" {
   project           = each.value.project_id
   key               = each.value.variable_name
   value             = sensitive(gitlab_project_access_token.this[each.key].token)
-  protected         = lookup(each.value, "protected", true)
-  masked            = lookup(each.value, "masked", true)
-  environment_scope = lookup(each.value, "environment_scope", "*")
+  protected         = each.value.protected
+  masked            = each.value.masked
+  environment_scope = each.value.environment_scope
   description       = "Generated access token for ${gitlab_project_access_token.this[each.key].name}"
 }
 
