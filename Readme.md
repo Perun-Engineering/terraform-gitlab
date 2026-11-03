@@ -155,6 +155,22 @@ access_tokens:
 
 **Warning:** An unprotected variable with an `api` token is available to all pipelines on all branches. Keep `protected: true` if you do not have a strong reason.
 
+## ID token sub claim
+
+Set `ci_id_token_sub_claim_components` on a project to change the `sub` claim of the CI/CD ID tokens of its jobs.
+If you do not set the key, the module does not change the claim. GitLab then uses `["project_path", "ref_type", "ref"]`.
+
+```yaml
+projects:
+  - name: deployer
+    namespace: infra
+    ci_id_token_sub_claim_components: ["project_path", "ref_type", "ref", "environment_protected", "deployment_tier"]
+```
+
+A job in a protected environment then gets `project_path:infra/deployer:ref_type:branch:ref:main:environment_protected:true:deployment_tier:other`.
+
+**Caution:** A cloud role that trusts an exact `sub` stops matching when you change the components. Update the trust policy of the role before you apply.
+
 ## Nested subgroups
 
 A group can be up to three levels deep: a top-level group, a subgroup, and a group in that subgroup.
