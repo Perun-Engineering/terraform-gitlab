@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.3.2...v2.4.0) (2026-11-03)
+
+
+### Features
+
+* pass ci_id_token_sub_claim_components to gitlab_project ([76eaaa0](https://github.com/Perun-Engineering/terraform-gitlab/commit/76eaaa080fc9a579ad9835bf0c403d6932d5c331))
+
 ## [2.3.2](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.3.1...v2.3.2) (2026-11-03)
 
 
