@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.5.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.4.0...v2.5.0) (2026-11-05)
+
+
+### Features
+
+* add GitLab service accounts ([1dffd79](https://github.com/Perun-Engineering/terraform-gitlab/commit/1dffd79d68c8cdb55afedaf04eb2fc8700cf2bb4)), closes [#20](https://github.com/Perun-Engineering/terraform-gitlab/issues/20)
+
 ## [2.4.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.3.2...v2.4.0) (2026-11-03)
 
 
