@@ -427,25 +427,26 @@ resource "gitlab_group_issue_board" "this" {
   milestone_id = lookup(each.value.board, "milestone_id", null)
 }
 
-# Fetch User Data for Group Memberships
+# Fetch User Data for Group Memberships. A membership with service_account uses the ID of the service account that this module creates.
 data "gitlab_user" "membership_user" {
   for_each = merge([
     for group in var.gitlab_groups : {
       for member in lookup(group.settings, "memberships", []) : member.user_id => member
+      if lookup(member, "user_id", null) != null
     }
   ]...)
 
   username = each.value.user_id
 }
 
-# Create GitLab Group Memberships
+# Create GitLab Group Memberships. A member sets user_id (a username) or service_account.
 resource "gitlab_group_membership" "this" {
   for_each = merge([
     for group in var.gitlab_groups : {
       for member in lookup(group.settings, "memberships", []) : (
         contains(keys(group), "parent")
-        ? "${group.parent}/${group.name}-${member.user_id}" # Include parent in the key if it exists
-        : "${group.name}-${member.user_id}"                 # Fallback to group name only if no parent
+        ? "${group.parent}/${group.name}-${coalesce(lookup(member, "user_id", null), lookup(member, "service_account", null))}" # Include parent in the key if it exists
+        : "${group.name}-${coalesce(lookup(member, "user_id", null), lookup(member, "service_account", null))}"                 # Fallback to group name only if no parent
         ) => {
         group_name = contains(keys(group), "parent") ? "${group.parent}/${group.name}" : group.name
         parent     = lookup(group, "parent", null)
@@ -454,13 +455,23 @@ resource "gitlab_group_membership" "this" {
     }
   ]...)
 
-  group_id                      = local.group_ids[each.value.group_name]
-  access_level                  = each.value.member.access_level
-  user_id                       = data.gitlab_user.membership_user[each.value.member.user_id].id
+  group_id     = local.group_ids[each.value.group_name]
+  access_level = each.value.member.access_level
+  user_id = (
+    lookup(each.value.member, "service_account", null) != null
+    ? local.service_account_ids[each.value.member.service_account]
+    : data.gitlab_user.membership_user[each.value.member.user_id].id
+  )
   expires_at                    = lookup(each.value.member, "expires_at", null)
   member_role_id                = contains(["premium", "ultimate"], lower(var.tier)) ? lookup(each.value.member, "member_role_id", null) : null
   skip_subresources_on_destroy  = lookup(each.value.member, "skip_subresources_on_destroy", false)
   unassign_issuables_on_destroy = lookup(each.value.member, "unassign_issuables_on_destroy", false)
+  lifecycle {
+    precondition {
+      condition     = lookup(each.value.member, "service_account", null) == null || contains(local.service_account_usernames, each.value.member.service_account)
+      error_message = "The service_account of a membership must be the username of a service account that this module manages."
+    }
+  }
 }
 
 # Create GitLab Protected Environments
@@ -1140,11 +1151,12 @@ resource "gitlab_project_level_mr_approvals" "this" {
   selective_code_owner_removals                  = lookup(each.value.level_mr_approvals, "selective_code_owner_removals", false)
 }
 
+# A member sets user_email or service_account.
 resource "gitlab_project_membership" "this" {
   for_each = merge([
     for project in var.gitlab_projects : {
       for member in lookup(project.settings, "memberships", []) :
-      "${project.namespace}-${project.name}-${member.user_email}" => {
+      "${project.namespace}-${project.name}-${coalesce(lookup(member, "user_email", null), lookup(member, "service_account", null))}" => {
         project_name      = project.name
         project_namespace = project.namespace
         member            = member
@@ -1153,10 +1165,20 @@ resource "gitlab_project_membership" "this" {
   ]...)
 
   # Use the correct project ID
-  project      = gitlab_project.this["${each.value.project_namespace}/${each.value.project_name}"].id
-  user_id      = contains(keys(local.exists_users), each.value.member.user_email) ? local.exists_users[each.value.member.user_email].id : null
+  project = gitlab_project.this["${each.value.project_namespace}/${each.value.project_name}"].id
+  user_id = (
+    lookup(each.value.member, "service_account", null) != null
+    ? local.service_account_ids[each.value.member.service_account]
+    : contains(keys(local.exists_users), each.value.member.user_email) ? local.exists_users[each.value.member.user_email].id : null
+  )
   access_level = each.value.member.access_level
   expires_at   = lookup(each.value.member, "expires_at", null)
+  lifecycle {
+    precondition {
+      condition     = lookup(each.value.member, "service_account", null) == null || contains(local.service_account_usernames, each.value.member.service_account)
+      error_message = "The service_account of a membership must be the username of a service account that this module manages."
+    }
+  }
 }
 
 resource "gitlab_project_milestone" "this" {

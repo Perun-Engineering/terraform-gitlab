@@ -101,6 +101,7 @@ The module accepts the following inputs:
 - gitlab_token: GitLab toke
 - gitlab_base_url: Url of the GitLab instance API
 - tier: Tier of your GitLab license
+- gitlab_instance_service_accounts: List of instance service accounts. Self-managed GitLab only.
 
 Refer to the variables.tf file for more details.
 
@@ -154,6 +155,76 @@ access_tokens:
 ```
 
 **Warning:** An unprotected variable with an `api` token is available to all pipelines on all branches. Keep `protected: true` if you do not have a strong reason.
+
+## Service accounts
+
+Service accounts need the `premium` or `ultimate` tier. If `tier` is `free`, the plan fails.
+The module keys each service account by its `username`, so `username` is required and must be unique.
+
+| Kind | Input | Requirements |
+|---|---|---|
+| Instance | `gitlab_instance_service_accounts` | Self-managed GitLab. The provider token must be an admin token. |
+| Group | `gitlab_groups[].settings.service_accounts` | Top-level groups only. The provider token must have the Owner role on the group. |
+
+Account keys:
+
+| Key | Description |
+|---|---|
+| `username` | Required. The username of the account. |
+| `name` | The display name. |
+| `email` | The email. |
+| `skip_wait_for_deletion` | Group accounts only. Do not wait until GitLab deletes the account. |
+| `timeouts.delete` | The time to wait until GitLab deletes the account. |
+| `access_tokens` | The tokens of the account. |
+
+A token sets `name`, `scopes`, and `expires_at` or `rotation_configuration`. If you set both, the module uses `rotation_configuration`. If you set neither, the provider default applies.
+A token can put its value in a CI/CD variable of a managed group. Set `variable_name` on the token.
+The variable has the keys of [Access token variables](#access-token-variables), and these keys:
+
+| Key | Default | Description |
+|---|---|---|
+| `variable_group` | The group of the account | The key of a managed group, for example `dev` or `dev/team`. Required for an instance account. |
+| `hidden` | The value of `masked` | The CI/CD settings do not show the value. A hidden variable must be masked. |
+
+A group or project membership can use a service account from the same run. Set `service_account` to its username, not `user_id` or `user_email`:
+
+```hcl
+gitlab_instance_service_accounts = [
+  {
+    name     = "SonarQube"
+    username = "sonarqube-bot"
+    access_tokens = [
+      {
+        name   = "mr-decoration"
+        scopes = ["api"]
+        rotation_configuration = {
+          expiration_days    = 365
+          rotate_before_days = 30
+        }
+        variable_name  = "SONAR_TOKEN"
+        variable_group = "dev"
+      }
+    ]
+  }
+]
+
+gitlab_groups = [
+  {
+    name = "dev"
+    settings = {
+      memberships = [
+        { service_account = "sonarqube-bot", access_level = "reporter" }
+      ]
+    }
+  }
+]
+```
+
+The `service_accounts` output shows the ID and username of each account. The sensitive `service_account_tokens` output shows the token values, keyed by `<username>-<token name>`.
+
+**Warning:** Terraform keeps the token values in the state. Keep the state in an encrypted backend with restricted access.
+
+**Note:** Group tokens with `rotation_configuration` go to `gitlab_group_service_account_access_token.rotating`, other group tokens go to `.this`. Provider 19.5.0 crashes in `terraform validate` if `rotation_configuration` comes from a conditional expression.
 
 ## ID token sub claim
 

@@ -38,3 +38,16 @@ output "integration_slack_ids" {
   description = "IDs of Slack integrations."
   value       = [for integration in gitlab_integration_slack.this : integration.id]
 }
+
+output "service_accounts" {
+  description = "IDs and usernames of the created service accounts, keyed by username."
+  value = {
+    for username, id in local.service_account_ids : username => { id = id, username = username }
+  }
+}
+
+output "service_account_tokens" {
+  description = "Values of the service account tokens, keyed by \"<username>-<token name>\"."
+  value       = local.service_account_token_values
+  sensitive   = true
+}

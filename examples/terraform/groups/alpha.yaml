@@ -45,6 +45,19 @@ groups:
         #   member_role_id: 2
         #   skip_subresources_on_destroy: true
         #   unassign_issuables_on_destroy: false
+      service_accounts: []
+        # - name: "Deployer"
+        #   username: "alpha-deployer"
+        #   skip_wait_for_deletion: false
+        #   timeouts:
+        #     delete: "10m"
+        #   access_tokens:
+        #     - name: "ci"
+        #       scopes: ["api"]
+        #       rotation_configuration:
+        #         expiration_days: 90
+        #         rotate_before_days: 7
+        #       variable_name: "DEPLOYER_TOKEN"
       access_tokens: []
         # - name: "Dev Access Token"
         #   scopes: ["api", "read_repository"]
