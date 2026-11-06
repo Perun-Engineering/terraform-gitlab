@@ -642,6 +642,10 @@ locals {
           [for entry in lookup(branch, "allowed_to_unprotect", []) : lookup(entry, "user_email", null)],
         )
       ]),
+      flatten([
+        for tag in lookup(project.settings, "protected_tags", []) :
+        [for entry in lookup(tag, "allowed_to_create", []) : lookup(entry, "user_email", null)]
+      ]),
     )
   ])))
 
@@ -679,6 +683,12 @@ locals {
             [for entry in lookup(branch, "allowed_to_merge", []) : lookup(entry, "group", null)],
             [for entry in lookup(branch, "allowed_to_unprotect", []) : lookup(entry, "group", null)],
           )
+        ]
+      ]),
+      flatten([
+        for project in var.gitlab_projects : [
+          for tag in lookup(project.settings, "protected_tags", []) :
+          [for entry in lookup(tag, "allowed_to_create", []) : lookup(entry, "group", null)]
         ]
       ]),
     ])) : path if !contains(local.managed_group_paths, path)
@@ -755,6 +765,7 @@ resource "gitlab_project" "this" {
   ci_default_git_depth                             = lookup(each.value, "ci_default_git_depth", null)
   ci_forward_deployment_enabled                    = lookup(each.value, "ci_forward_deployment_enabled", null)
   ci_id_token_sub_claim_components                 = lookup(each.value, "ci_id_token_sub_claim_components", null)
+  ci_push_repository_for_job_token_allowed         = lookup(each.value, "ci_push_repository_for_job_token_allowed", null)
   ci_restrict_pipeline_cancellation_role           = lookup(each.value, "ci_restrict_pipeline_cancellation_role", null)
   ci_separated_caches                              = lookup(each.value, "ci_separated_caches", null)
   container_registry_access_level                  = lookup(each.value, "container_registry_access_level", null)
@@ -1567,6 +1578,45 @@ resource "gitlab_branch_protection" "ee" {
       group_id     = contains(keys(local.exists_groups), lookup(entry, "group", "")) ? local.exists_groups[entry.group][0].group_id : null
     }
   ]
+}
+
+# allowed_to_create with a user, group or deploy key needs GitLab Premium or Ultimate.
+resource "gitlab_tag_protection" "this" {
+  for_each = merge([
+    for project in var.gitlab_projects : {
+      for tag in lookup(project.settings, "protected_tags", []) :
+      "${project.namespace}-${project.name}-${tag.tag}" => {
+        project_key       = "${project.namespace}/${project.name}"
+        deploy_key_prefix = "${project.namespace}-${project.name}"
+        tag               = tag
+      }
+    }
+  ]...)
+
+  project             = gitlab_project.this[each.value.project_key].id
+  tag                 = each.value.tag.tag
+  create_access_level = lookup(each.value.tag, "create_access_level", "maintainer")
+
+  dynamic "allowed_to_create" {
+    for_each = lookup(each.value.tag, "allowed_to_create", [])
+    content {
+      access_level  = lookup(allowed_to_create.value, "access_level", null)
+      user_id       = contains(keys(local.exists_users), lookup(allowed_to_create.value, "user_email", "")) ? local.exists_users[allowed_to_create.value.user_email].id : null
+      group_id      = contains(keys(local.exists_groups), lookup(allowed_to_create.value, "group", "")) ? local.exists_groups[allowed_to_create.value.group][0].group_id : null
+      deploy_key_id = try(local.exists_deploy_keys["${each.value.deploy_key_prefix}-${allowed_to_create.value.deploy_key_title}"].deploy_key_id, null)
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition = alltrue([
+        for entry in lookup(each.value.tag, "allowed_to_create", []) :
+        contains(keys(local.exists_deploy_keys), "${each.value.deploy_key_prefix}-${entry.deploy_key_title}")
+        if lookup(entry, "deploy_key_title", null) != null
+      ])
+      error_message = "Each deploy_key_title in protected_tags must match the title of a deploy key of the same project."
+    }
+  }
 }
 
 resource "gitlab_repository_file" "this" {

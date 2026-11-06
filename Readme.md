@@ -242,6 +242,32 @@ A job in a protected environment then gets `project_path:infra/deployer:ref_type
 
 **Caution:** A cloud role that trusts an exact `sub` stops matching when you change the components. Update the trust policy of the role before you apply.
 
+## Protected tags
+
+Set `protected_tags` in the project settings to protect tags. `tag` is a tag name or a wildcard.
+
+```yaml
+projects:
+  - name: app
+    namespace: infra
+    settings:
+      deploy_keys:
+        - title: RELEASE_KEY
+          key: ssh-ed25519 AAAA...
+          can_push: true
+      protected_tags:
+        - tag: "v*"
+          create_access_level: maintainer   # default
+          allowed_to_create:
+            - deploy_key_title: RELEASE_KEY
+```
+
+An `allowed_to_create` entry sets one of `access_level`, `user_email`, `group` or `deploy_key_title`. A `deploy_key_title` must be the title of a deploy key of the same project, or the plan fails. A user, group or deploy key needs GitLab Premium or Ultimate.
+
+## Job token push
+
+Set `ci_push_repository_for_job_token_allowed: true` on a project to allow Git push requests that use the CI/CD job token. The job token has the permissions of the user who runs the job, so protected branches and tags still apply. If you do not set the key, the module does not change the setting.
+
 ## Nested subgroups
 
 A group can be up to three levels deep: a top-level group, a subgroup, and a group in that subgroup.
