@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.5.0...v2.6.0) (2026-11-06)
+
+
+### Features
+
+* add protected tags and job token push to projects ([#22](https://github.com/Perun-Engineering/terraform-gitlab/issues/22)) ([e928427](https://github.com/Perun-Engineering/terraform-gitlab/commit/e928427b7794e631c2eea640473908963224753d))
+
 ## [2.5.0](https://github.com/Perun-Engineering/terraform-gitlab/compare/v2.4.0...v2.5.0) (2026-11-05)
 
 
